@@ -216,3 +216,14 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+# Project-specific: dataset and model files (too large / shouldn't be in git)
+train/
+Test_NoisyLR/
+*.npy
+*.pth
+*.pt
+*.ckpt
+
+# OS-specific
+.DS_Store
+Thumbs.db
