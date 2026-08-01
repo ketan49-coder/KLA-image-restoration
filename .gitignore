@@ -1,7 +1,35 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[codz]
+*$py.class
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Environments
+.env
+.venv
+env/
+venv/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IDE
+.vscode/
+.idea/
+
+# Project-specific: dataset and model files
 train/
 Test_NoisyLR/
 *.npy
 *.pth
 *.pt
-__pycache__/
+*.ckpt
+
+# OS-specific
 .DS_Store
+Thumbs.db
