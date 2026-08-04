@@ -3,7 +3,7 @@
 **Track 1 (KLA-sponsored): AI-Based Restoration of Degraded Semiconductor Inspection Images**
 
 **Team:** Ketan Shinde, Rikhil Vaswani, Aditya Jagtap  
-**Institution:** DES Pune
+
 
 ---
 
