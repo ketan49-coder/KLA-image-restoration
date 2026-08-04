@@ -38,14 +38,14 @@ except ImportError:
 # Update this once model.py is finalized. Example:
 # from model import RestorationUNet
 try:
-    from model import RestorationUNet as Model
+    from model import UNet as Model
     MODEL_AVAILABLE = True
 except ImportError:
     MODEL_AVAILABLE = False
     print("[WARNING] Could not import model from model.py. "
           "Update the import line in eval.py to match the actual class name.")
 
-from dataset import RestorationDataset  # assumes dataset.py defines this class
+from dataset import ImageRestorationDataset as RestorationDataset  # assumes dataset.py defines this class
 
 
 def compute_metrics(pred, gt):

@@ -2,8 +2,8 @@
 
 **Track 1 (KLA-sponsored): AI-Based Restoration of Degraded Semiconductor Inspection Images**
 
-Team: [Your Name], Rikhil [Last Name]
-Institution: DES Pune
+**Team:** Ketan Shinde, Rikhil Vaswani, Aditya Jagtap  
+**Institution:** DES Pune
 
 ---
 
@@ -28,25 +28,17 @@ inspection-line throughput.
 
 ## Approach
 
-We use a **U-Net-style convolutional neural network** with:
-- Symmetric encoder-decoder structure with skip connections (inspired by recent findings
-  that well-designed U-Nets match or exceed complex all-in-one restoration frameworks —
-  see [References](#references))
-- **Residual/noise prediction**: the model predicts the degradation residual rather than
-  the clean image directly, subtracting it from the (upsampled) input — a technique
-  confirmed in industrial practice (see US Patent 12,511,720)
-- An upsampling head (pixel-shuffle / transpose convolution) to handle the
-  super-resolution component
-- LeakyReLU activations throughout the encoder/decoder
+We use a **U-Net convolutional neural network** with:
+- Symmetric encoder-decoder structure with skip connections
+- 4 encoder blocks with max pooling for downsampling
+- Bottleneck layer at 1024 channels
+- 4 decoder blocks with transposed convolutions for upsampling
+- Skip connections concatenating encoder and decoder features
+- Batch normalization and ReLU activations throughout
 
-**Loss function**: combined L1 + MS-SSIM loss, chosen based on empirical evidence that this
-combination outperforms L1, L2, or SSIM alone across standard image quality metrics
-(see [References](#references)).
+**Loss function**: Combined L1 + MSE loss for training stability and quality.
 
-We deliberately chose a task-specific CNN/U-Net over more complex "all-in-one" restoration
-architectures (e.g., CoRE-UIR, QuReC) after evaluating the domain mismatch risk (those
-architectures are trained on natural-photo/remote-sensing domains, not grayscale
-semiconductor imagery) against our development timeline.
+The U-Net architecture is well-suited for this image restoration task due to its proven effectiveness in medical imaging and ability to preserve spatial information through skip connections.
 
 ---
 
@@ -55,11 +47,10 @@ semiconductor imagery) against our development timeline.
 ```
 .
 ├── dataset.py       # PyTorch Dataset/DataLoader for GT/NoisyLR .npy pairs
-├── model.py         # U-Net architecture with residual prediction + upsampling head
-├── train.py         # Training loop (loss function, optimizer, checkpointing)
-├── eval.py          # Evaluation script: PSNR, SSIM, LPIPS, inference speed benchmarking
-├── utils.py         # Shared helpers (speckle log-transform, normalization, visualization)
-├── config.py        # Central hyperparameters and file paths
+├── model.py         # U-Net architecture implementation
+├── losses.py        # Combined L1 + MSE loss function
+├── trainn.py        # Training loop with optimizer and checkpointing
+├── eval.py          # Evaluation script: PSNR, SSIM, LPIPS, inference speed
 ├── requirements.txt # Python dependencies
 └── README.md        # This file
 ```
@@ -96,13 +87,18 @@ Test_NoisyLR/
 
 ### 4. Train the model
 ```bash
-python train.py --config config.py
+python trainn.py
 ```
+This will:
+- Train for 1 epoch on the dataset
+- Save model weights to `checkpoints/unet_model.pth`
+- Display loss progress every 100 batches
 
 ### 5. Evaluate
 ```bash
-python eval.py --checkpoint path/to/checkpoint.pth --data_dir ./train/train
+python eval.py --checkpoint checkpoints/unet_model.pth --data_dir ./train/train
 ```
+This computes PSNR, SSIM, LPIPS metrics and inference speed.
 
 ---
 
@@ -131,5 +127,6 @@ python eval.py --checkpoint path/to/checkpoint.pth --data_dir ./train/train
 
 ## Team
 
-- [Your Name] — architecture, training
-- Rikhil [Last Name] — data pipeline, model implementation
+- **Ketan Shinde** — Project lead, model architecture, training pipeline
+- **Rikhil Vaswani** — Dataset handling, evaluation metrics
+- **Aditya Jagtap** — Loss functions, model optimization
