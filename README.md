@@ -127,6 +127,6 @@ This computes PSNR, SSIM, LPIPS metrics and inference speed.
 
 ## Team
 
-- **Ketan Shinde** — Project lead, model architecture, training pipeline
-- **Rikhil Vaswani** — Dataset handling, evaluation metrics
-- **Aditya Jagtap** — Loss functions, model optimization
+- **Ketan Shinde** — 
+- **Rikhil Vaswani** — 
+- **Aditya Jagtap** — 
