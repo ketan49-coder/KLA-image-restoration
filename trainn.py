@@ -180,7 +180,7 @@ def train(
     use_drive=False,
     resume_path=None,
     scheduler_type="plateau",
-    loss_type="charb_compound",
+    loss_type="compound",
     seed=42,
     num_workers=2,
     preload_ram=True,
@@ -381,9 +381,9 @@ if __name__ == '__main__':
     parser.add_argument("--use_drive", action="store_true", help="Backup checkpoints to Google Drive")
     parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint .pth to resume from")
     parser.add_argument("--scheduler", type=str, default="plateau", choices=["plateau", "cosine", "none"])
-    parser.add_argument("--loss", type=str, default="charb_compound",
-                        choices=["charb_compound", "compound", "charbonnier", "l1", "mse", "msssim", "baseline"],
-                        help="Loss function (charb_compound / compound / charbonnier / l1 / mse / msssim / baseline)")
+    parser.add_argument("--loss", type=str, default="compound",
+                        choices=["compound", "charb_compound", "charbonnier", "l1", "mse", "msssim", "baseline"],
+                        help="Loss function (compound / charb_compound / charbonnier / l1 / mse / msssim / baseline)")
     parser.add_argument("--w_charb", type=float, default=0.50, help="Weight for Charbonnier loss in charb_compound (default 0.50)")
     parser.add_argument("--w_msssim", type=float, default=0.40, help="Weight for MS-SSIM loss in charb_compound (default 0.40)")
     parser.add_argument("--alpha_zhao", type=float, default=0.90, help="MS-SSIM ratio in Zhao mix (default 0.90)")
