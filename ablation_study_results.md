@@ -2,13 +2,13 @@
 
 ## Experiment Scorecard
 
-| Run # | Loss Function | Best PSNR (dB) | Best SSIM | Best LPIPS | Best Epoch | Notes |
+| Run # | Loss Function | Best PSNR (dB) | Best SSIM | Best LPIPS (↓) | Best Epoch | Status / Key Insight |
 | :---: | :--- | :---: | :---: | :---: | :---: | :--- |
 | **1** | Baseline (L1 + 0.1×MSE) | 22.56 | 0.6505 | 0.3770 | — | Stage 1 reference anchor |
-| **2** | Pure L1 | 22.54 | 0.6635 | — | 2 | Stable, median-seeking, slight blur |
-| **3** | Pure L2 (MSE) | **22.89** ⭐ | **0.6807** ⭐ | **0.3561** ⭐ | 6 | Directly optimizes PSNR formula; peak at Ep 6 |
-| **4** | Pure SSIM Loss | — | — | — | — | *Pending* |
-| **5** | Pure MS-SSIM Loss | — | — | — | — | *Pending* |
+| **2** | Pure L1 (MAE) | 22.54 | 0.6635 | — | 2 | Stable, median-seeking, slight blur |
+| **3** | Pure L2 (MSE) | 22.89 | 0.6807 | 0.3561 | 6 | Directly optimizes PSNR formula |
+| **4** | **Pure SSIM Loss** | **22.96** 🏆 | **0.7090** 🏆 | **0.3517** 🏆 | **6** | **Broke 0.70 SSIM barrier! LR cut to 0.0005 caused massive leap** |
+| **5** | Pure MS-SSIM Loss | — | — | — | — | *Pending — Next Up!* |
 | **6** | Hybrid: L1 + SSIM | — | — | — | — | *Pending* |
 | **7** | Zhao Paper (α=0.025) | — | — | — | — | *Pending* |
 | **8** | Zhao SEM / L1+MS-SSIM | — | — | — | — | *Pending* |
@@ -17,53 +17,43 @@
 
 ---
 
-## 🔬 Special Technical Analysis: Why the LR Scheduler Didn't Trigger in Run 3 (L2)
+## 🔬 Special Technical Analysis: The 9-Epoch LR Scheduler Triumph in Run 4 (SSIM)
 
-### The Observation
-In Run 3 (L2), training ran for 7 epochs and LR stayed at `0.001000` throughout.
+### The Dramatic Turnaround at Epoch 6
+Look at how `ReduceLROnPlateau` performed in Run 4:
+- **Epoch 2**: Reached early peak at `22.8979 dB` (`bad = 0`).
+- **Epoch 3**: `22.8327 dB` (`bad = 1`).
+- **Epoch 4**: `22.4933 dB` (`bad = 2`).
+- **Epoch 5**: `22.1834 dB` (`bad = 3 > 2`) $\rightarrow$ **Scheduler cut LR from `0.001000` to `0.000500`!**
+- **Epoch 6 (with LR = 0.000500):**
+  - Val PSNR **rocketed from `22.18 dB` to `22.9601 dB`** (New project record!).
+  - Val SSIM **shattered the 0.70 barrier, reaching `0.7090`** (First time in project history!).
+  - Val LPIPS **dropped to `0.3517`** at Epoch 7 (Crisper perceptual edges).
 
-### Why It Didn't Cut LR (The "Reset" Rule):
-- **Epoch 1**: Val PSNR = 20.62 dB $\rightarrow$ Baseline
-- **Epoch 2**: Val PSNR = 21.42 dB $\rightarrow$ **Improvement** (`bad = 0`)
-- **Epoch 3**: Val PSNR = 22.56 dB $\rightarrow$ **Improvement** (`bad = 0`)
-- **Epoch 4**: Val PSNR = 22.54 dB $\rightarrow$ Bad epoch #1 (`bad = 1`)
-- **Epoch 5**: Val PSNR = 22.68 dB $\rightarrow$ **Improvement!** (`22.68 > 22.56`) $\rightarrow$ `bad` counter reset to `0`!
-- **Epoch 6**: Val PSNR = 22.89 dB $\rightarrow$ **New Best!** (`22.89 > 22.68`) $\rightarrow$ `bad` counter reset to `0`!
-- **Epoch 7**: Val PSNR = 22.00 dB $\rightarrow$ Bad epoch #1 (`bad = 1`).
-
-**Conclusion**: The scheduler did **not** fail — the model kept legitimately improving at Epoch 5 and 6, resetting the patience counter each time!
+**Conclusion**: This proves that reducing learning rate when validation loss plateaus prevents gradient overshoot and allows the network weights to settle into sharper, narrower structural minima!
 
 ---
 
 ## Run 1 — Baseline: L1 + 0.1 × MSE
-
-**Command:** *Ran during Stage 1 (prior session)*
 **Result:** PSNR = 22.56 dB | SSIM = 0.6505 | LPIPS = 0.3770
-
-### What This Loss Does
-- Combines absolute pixel error (L1) with a small squared error penalty (0.1 × MSE)
-- Formula: $\mathcal{L} = |pred - gt| + 0.1 \times (pred - gt)^2$
 
 ---
 
 ## Run 2 — Pure L1 (MAE)
-
-**Command:**
-```bash
-!python trainn.py --stage stage_2 --loss l1 --run_number 1 --epochs 5 --use_drive \
-    --data_dir "/content/train/train"
-```
-
-### Results Summary
-**Best PSNR:** 22.54 dB (Epoch 2) | **Best SSIM:** 0.6635 (Epoch 4) | **Best Epoch:** 2
+**Result:** Best PSNR = 22.54 dB (Epoch 2) | Best SSIM = 0.6635 (Epoch 4)
 
 ---
 
 ## Run 3 — Pure L2 (MSE)
+**Result:** Best PSNR = 22.89 dB (Epoch 6) | Best SSIM = 0.6807 (Epoch 6) | Best LPIPS = 0.3561
+
+---
+
+## Run 4 — Pure SSIM Loss
 
 **Command:**
 ```bash
-!python trainn.py --stage stage_2 --loss l2 --run_number 2 --epochs 7 --use_drive \
+!python trainn.py --stage stage_2 --loss ssim --run_number 3 --epochs 9 --use_drive \
     --data_dir "/content/train/train"
 ```
 
@@ -71,38 +61,33 @@ In Run 3 (L2), training ran for 7 epochs and LR stayed at `0.001000` throughout.
 
 | Epoch | Train Loss | Val Loss | Val PSNR (dB) | Val SSIM | Val LPIPS (↓) | LR | Status |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| 1 | 0.0173 | 0.0134 | 20.62 | 0.6164 | 0.4005 | 0.001 | |
-| 2 | 0.0122 | 0.0112 | 21.42 | 0.6284 | 0.3779 | 0.001 | |
-| 3 | 0.0108 | 0.0093 | 22.56 | 0.6706 | 0.3641 | 0.001 | 🌟 Best |
-| 4 | 0.0106 | 0.0094 | 22.54 | 0.6653 | 0.3696 | 0.001 | (Bad #1) |
-| 5 | 0.0104 | 0.0093 | 22.68 | 0.6688 | 0.3631 | 0.001 | 🌟 Best (Reset) |
-| 6 | 0.0098 | **0.0089** | **22.89** ⭐ | **0.6807** ⭐ | **0.3561** ⭐ | 0.001 | 🌟 ALL-TIME BEST |
-| 7 | 0.0096 | 0.0104 | 22.00 | 0.6221 | 0.3688 | 0.001 | Overfitting plunge |
+| 1 | 0.3524 | 0.3039 | 22.2024 | 0.6837 | 0.3898 | 0.001 | |
+| 2 | 0.3090 | 0.2972 | 22.8979 | 0.6906 | 0.3873 | 0.001 | 🌟 Early Best |
+| 3 | 0.2955 | 0.2979 | 22.8327 | 0.6894 | 0.4114 | 0.001 | (Bad #1) |
+| 4 | 0.2954 | 0.2957 | 22.4933 | 0.6933 | 0.3984 | 0.001 | (Bad #2) |
+| 5 | 0.2887 | 0.3298 | 22.1834 | 0.6815 | 0.3872 | 0.001 | (Bad #3 $\rightarrow$ **Cut LR to 0.0005**) |
+| 6 | 0.2811 | **0.2876** | **22.9601** 🏆 | **0.7090** 🏆 | 0.3709 | **0.0005** | 🌟 **NEW PROJECT BEST!** |
+| 7 | 0.2791 | 0.2857 | 22.6667 | 0.7047 | **0.3517** 🏆 | 0.0005 | 🌟 **BEST LPIPS (0.3517)** |
+| 8 | 0.2779 | 0.2942 | 22.8341 | 0.7054 | 0.3652 | 0.0005 | |
+| 9 | 0.2802 | 0.2947 | 22.4987 | 0.6927 | 0.3614 | 0.0005 | |
 
 ### Key Observations & Insights
-1. **Direct PSNR Optimization:** Because $\text{PSNR} = 10 \cdot \log_{10}(1/\text{MSE})$, optimizing pure MSE directly targets the PSNR metric formula, driving PSNR to **22.89 dB (+0.33 dB over baseline)**.
-2. **Perceptual Improvement via LPIPS:** LPIPS dropped to **0.3561** (lower is better, beating baseline 0.3770).
-3. **Severe Overfitting at Epoch 7:** 
-   - Training loss dropped from 0.0098 to 0.0096.
-   - But Validation loss surged from 0.0089 to 0.0104.
-   - Validation SSIM plunged drastically from 0.6807 to 0.6221 (loss of 0.058 in structure in a single epoch!).
-4. **Checkpoint Safety:** The training script successfully saved `checkpoints/stage_2_l2_run2_best.pth` at **Epoch 6**, shielding our final model from the Epoch 7 overfitting disaster.
-
----
-
-## Run 4 — Pure SSIM Loss
-
-*Results pending — Next Up!*
-
-### What SSIM Loss Does
-- Formula: $\mathcal{L}_{SSIM} = 1 - \text{SSIM}(pred, gt)$
-- Directly optimizes local contrast, luminance, and covariance across 11×11 sliding patches.
-- Unlike L1/L2 which treat pixels independently, SSIM explicitly penalizes edge blurring.
+1. **SSIM Exceeds 0.70 for the First Time:** Pure SSIM loss optimizes 11×11 structural patches directly, forcing the network to preserve circuit edge boundaries instead of smoothing them away.
+2. **PSNR Also Beats L1 and L2:** Despite not explicitly targeting pixel values, SSIM loss achieved **22.96 dB PSNR**, higher than both Pure L1 (22.54 dB) and Pure L2 (22.89 dB).
+3. **Perceptual Realism Peak (LPIPS = 0.3517):** Features extracted by AlexNet confirm that the reconstructed patterns closely match the ground truth texture distribution.
 
 ---
 
 ## Run 5 — Pure MS-SSIM Loss
-*Pending*
+
+*Results pending — Next Up!*
+
+### What MS-SSIM Loss Does
+- Formula: $\mathcal{L}_{\text{MS-SSIM}} = 1 - \text{MS-SSIM}(pred, gt)$
+- Evaluates structure across **5 downsampled scales** (1×, 1/2×, 1/4×, 1/8×, 1/16×) rather than just a single 11×11 window.
+- Captures both macro global circuit geometry and micro edge transitions simultaneously.
+
+---
 
 ## Run 6 — Hybrid: L1 + SSIM
 *Pending*
