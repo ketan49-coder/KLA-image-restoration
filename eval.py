@@ -141,7 +141,7 @@ if __name__ == "__main__":
     parser.add_argument("--data_dir", type=str, default="train/train", help="Path to dataset root (containing GT/NoisyLR)")
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument("--device", type=str, default=None)
-    parser.add_argument("--model", type=str, default="symunet", choices=["symunet"], help="Model architecture (defaults to symunet)")
+    parser.add_argument("--model", type=str, default="resrestorer", choices=["resrestorer", "symunet"], help="Model architecture (resrestorer / symunet)")
     parser.add_argument("--base_channels", type=int, default=64, help="Base channel count (default: 64)")
     args = parser.parse_args()
 

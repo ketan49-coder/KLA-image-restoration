@@ -203,16 +203,105 @@ class SymUNet(nn.Module):
 
 
 # ====================================================================
-# 4. MODEL FACTORY
+# 4. RESRESTORER (Full-Resolution Deep Residual Channel-Attention Network)
 # ====================================================================
-def get_model(name="symunet", in_channels=1, out_channels=1, base_channels=64):
+class RCAB(nn.Module):
     """
-    Factory to retrieve the SymUNet model.
+    Residual Channel Attention Block (RCAB)
+    Core building block of state-of-the-art super-resolution (RCAN / EDSR).
+    Maintains full spatial resolution (128x128) with residual scaling (0.1) for deep numerical stability.
     """
-    return SymUNet(
-        in_channels=in_channels,
-        out_channels=out_channels,
-        base_channels=base_channels,
-        use_attention_gates=True
-    )
+    def __init__(self, channels=64, reduction=16, res_scale=0.1):
+        super(RCAB, self).__init__()
+        self.res_scale = res_scale
+        self.body = nn.Sequential(
+            nn.Conv2d(channels, channels, 3, padding=1, bias=True),
+            nn.PReLU(),
+            nn.Conv2d(channels, channels, 3, padding=1, bias=True),
+        )
+        self.ca = ChannelAttention(channels, reduction=reduction)
+
+    def forward(self, x):
+        res = self.body(x)
+        res = self.ca(res)
+        return x + res * self.res_scale
+
+
+class ResRestorer(nn.Module):
+    """
+    ResRestorer: Full-Resolution Deep Residual Network
+    
+    Architectural Advantages for SEM Wafer Nanostructures:
+    1. Zero Downsampling / Zero Pooling: Never reduces spatial resolution to 8x8.
+       Preserves 100% of fine nanometer edge features.
+    2. Deep Residual Backbone: 16 RCAB blocks with Channel Attention & Residual Scaling.
+    3. Global Long Residual: Input shallow features are added directly to deep features.
+    4. ICNR Sub-Pixel Upsampling: 2x Super-Resolution via PixelShuffle with anti-checkerboard init.
+    5. Global Bilinear Residual: Output learns the delta (residual) on top of the upscaled input.
+    6. Ultra-Fast Inference: Simple residual convolutions without complex multi-scale routing.
+    """
+    def __init__(self, in_channels=1, out_channels=1, num_features=64, num_blocks=16):
+        super(ResRestorer, self).__init__()
+        
+        # 1. Shallow Feature Extraction Head
+        self.head = nn.Conv2d(in_channels, num_features, kernel_size=3, padding=1)
+        
+        # 2. Deep Residual Body (Full 128x128 resolution throughout)
+        self.body = nn.Sequential(*[
+            RCAB(channels=num_features, reduction=16, res_scale=0.1)
+            for _ in range(num_blocks)
+        ])
+        self.body_tail = nn.Conv2d(num_features, num_features, kernel_size=3, padding=1)
+        
+        # 3. Sub-Pixel 2x Upsampling Reconstruction Tail
+        self.upsample = nn.Sequential(
+            nn.Conv2d(num_features, out_channels * 4, kernel_size=3, padding=1),
+            nn.PixelShuffle(2)
+        )
+        icnr_init(self.upsample[0].weight, upscale_factor=2)
+        
+    def forward(self, x):
+        # Shallow features
+        f0 = self.head(x)
+        
+        # Deep residual feature extraction
+        f_deep = self.body(f0)
+        f_deep = self.body_tail(f_deep)
+        
+        # Long skip connection
+        f_res = f0 + f_deep
+        
+        # 2x Super-Resolution Tail
+        sr = self.upsample(f_res)
+        
+        # Global Bilinear Shortcut (learns high-frequency residual only)
+        base = F.interpolate(x, scale_factor=2, mode='bilinear', align_corners=False)
+        return sr + base
+
+
+# ====================================================================
+# 5. MODEL FACTORY
+# ====================================================================
+def get_model(name="resrestorer", in_channels=1, out_channels=1, base_channels=64):
+    """
+    Factory to retrieve models cleanly:
+      - 'resrestorer': Full-Resolution Deep Residual Network (No 4x pooling bottleneck, Peak PSNR)
+      - 'symunet': Symmetric U-Net with Attention Gates
+    """
+    name = (name or "resrestorer").lower()
+    if name in ["resrestorer", "edsr", "rcan", "residual_net"]:
+        return ResRestorer(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            num_features=base_channels,
+            num_blocks=16
+        )
+    else:
+        return SymUNet(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            base_channels=base_channels,
+            use_attention_gates=True
+        )
+
 
