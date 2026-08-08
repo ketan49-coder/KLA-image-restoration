@@ -156,14 +156,15 @@ class GuidedFrequencyLoss(nn.Module):
     """
     Guided Frequency Loss (GFL) via 2D Real FFT:
     Penalizes spectral attenuation and forces high-frequency edge restoration.
+    Uses orthonormal FFT normalization to ensure stable numerical scale (~0.05-0.2).
     """
     def __init__(self, alpha=0.2):
         super(GuidedFrequencyLoss, self).__init__()
         self.alpha = alpha
 
     def forward(self, pred, target):
-        pred_fft = torch.fft.rfft2(pred)
-        target_fft = torch.fft.rfft2(target)
+        pred_fft = torch.fft.rfft2(pred, norm="ortho")
+        target_fft = torch.fft.rfft2(target, norm="ortho")
 
         pred_mag = torch.abs(pred_fft)
         target_mag = torch.abs(target_fft)
@@ -179,11 +180,11 @@ class GuidedFrequencyLoss(nn.Module):
 # ====================================================================
 class CompoundRestorationLoss(nn.Module):
     """
-    Compound Loss combining:
-      - Zhao et al. Mix Loss (L1 + MS-SSIM)
-      - Guided Frequency Loss (2D FFT)
+    Flagship Compound Loss combining:
+      - Winning Structure-Dominant Zhao Mix (85% MS-SSIM + 15% Gaussian-L1)
+      - Guided Frequency Loss (2D FFT via orthonormal spectral regularizer)
     """
-    def __init__(self, alpha_zhao=0.15, w_gfl=0.15):
+    def __init__(self, alpha_zhao=0.85, w_gfl=0.10):
         super(CompoundRestorationLoss, self).__init__()
         self.w_gfl = w_gfl
         self.zhao_mix = ZhaoMixLoss(alpha=alpha_zhao)
@@ -231,10 +232,10 @@ class L1SSIMLoss(nn.Module):
         return self.alpha * self.l1(pred, target) + (1.0 - self.alpha) * self.ssim_loss(pred, target)
 
 
-def get_loss_function(name="baseline"):
+def get_loss_function(name="baseline", alpha_zhao=0.85, w_gfl=0.10):
     """
     Factory function for ablation experiments.
-    Supports all standard and combined experiment flags.
+    Supports all standard, combined, and compound GFL-sweep experiment flags.
     """
     name = name.lower()
     if name == "l1":
@@ -256,14 +257,28 @@ def get_loss_function(name="baseline"):
     elif name in ["zhao_sem", "zhao_015", "l1_msssim", "l1+msssim"]:
         # Tuned for SEM edge contrast (alpha=0.15, 85% L1 + 15% MS-SSIM)
         return ZhaoMixLoss(alpha=0.15)
+    elif name in ["msssim_50", "zhao_50", "msssim_balanced"]:
+        # Balanced (alpha=0.50, 50% MS-SSIM + 50% Gaussian-L1)
+        return ZhaoMixLoss(alpha=0.50)
+    elif name in ["msssim_85", "zhao_85", "msssim_dominant"]:
+        # Structure-dominant (alpha=0.85, 85% MS-SSIM + 15% Gaussian-L1)
+        return ZhaoMixLoss(alpha=0.85)
     elif name == "gfl":
         return GuidedFrequencyLoss(alpha=0.2)
+    elif name in ["compound_05", "compound_5"]:
+        return CompoundRestorationLoss(alpha_zhao=alpha_zhao, w_gfl=0.05)
+    elif name in ["compound_10", "compound_1"]:
+        return CompoundRestorationLoss(alpha_zhao=alpha_zhao, w_gfl=0.10)
+    elif name in ["compound_20", "compound_2"]:
+        return CompoundRestorationLoss(alpha_zhao=alpha_zhao, w_gfl=0.20)
+    elif name in ["compound_30", "compound_3"]:
+        return CompoundRestorationLoss(alpha_zhao=alpha_zhao, w_gfl=0.30)
     elif name in ["compound", "l1_msssim_gfl", "all", "l1+msssim+gfl"]:
-        # Full compound: Zhao Mix + Guided Frequency Loss
-        return CompoundRestorationLoss(alpha_zhao=0.15, w_gfl=0.15)
+        # Full compound: Customizable Zhao Mix base (default alpha=0.85) + GFL (default w_gfl=0.10)
+        return CompoundRestorationLoss(alpha_zhao=alpha_zhao, w_gfl=w_gfl)
     elif name == "baseline":
         return CombinedLoss()
     else:
         raise ValueError(f"Unknown loss: '{name}'. Choose from: "
-                         f"['l1', 'l2', 'ssim', 'msssim', 'l1_ssim', 'l1_msssim', 'zhao_paper', 'zhao_sem', 'gfl', 'l1_msssim_gfl', 'compound', 'baseline']")
+                         f"['l1', 'l2', 'ssim', 'msssim', 'l1_ssim', 'l1_msssim', 'zhao_paper', 'zhao_sem', 'msssim_50', 'msssim_85', 'gfl', 'compound', 'compound_05', 'compound_10', 'compound_20', 'compound_30', 'baseline']")
 

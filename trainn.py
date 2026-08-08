@@ -171,7 +171,7 @@ def evaluate_validation(model, val_loader, criterion, metric_evaluator, device):
 
 
 def train(
-    epochs=5,
+    epochs=9,
     batch_size=8,
     lr=0.001,
     stage="stage_2",
@@ -184,7 +184,9 @@ def train(
     seed=42,
     num_workers=2,
     preload_ram=True,
-    save_all_epochs=False
+    save_all_epochs=False,
+    alpha_zhao=0.85,
+    w_gfl=0.10
 ):
     # Set seed
     set_seed(seed)
@@ -232,7 +234,7 @@ def train(
     metric_evaluator = RestorationMetrics(device=device, compute_lpips=True)
 
     # 4. Loss Function via Factory
-    criterion = get_loss_function(loss_type).to(device)
+    criterion = get_loss_function(loss_type, alpha_zhao=alpha_zhao, w_gfl=w_gfl).to(device)
 
     # 5. Optimizer & Scheduler
     optimizer = optim.Adam(model.parameters(), lr=lr)
@@ -369,8 +371,10 @@ if __name__ == '__main__':
     parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint .pth to resume from")
     parser.add_argument("--scheduler", type=str, default="plateau", choices=["plateau", "cosine", "none"])
     parser.add_argument("--loss", type=str, default="l1",
-                        choices=["l1", "l2", "mse", "g_l1", "ssim", "msssim", "l1_ssim", "zhao_paper", "zhao_sem", "l1_msssim", "gfl", "l1_msssim_gfl", "compound", "baseline", "all"],
+                        choices=["l1", "l2", "mse", "g_l1", "ssim", "msssim", "l1_ssim", "zhao_paper", "zhao_sem", "l1_msssim", "msssim_50", "zhao_50", "msssim_balanced", "msssim_85", "zhao_85", "msssim_dominant", "gfl", "l1_msssim_gfl", "compound", "compound_05", "compound_10", "compound_20", "compound_30", "baseline", "all"],
                         help="Loss function to evaluate in ablation experiment")
+    parser.add_argument("--alpha_zhao", type=float, default=0.85, help="MS-SSIM ratio in Zhao mix for compound loss (default 0.85)")
+    parser.add_argument("--w_gfl", type=float, default=0.10, help="Weight for GFL frequency loss in compound loss (default 0.10)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     parser.add_argument("--num_workers", type=int, default=2)
     parser.add_argument("--no_preload_ram", action="store_true", help="Disable RAM dataset preloading")
@@ -391,5 +395,7 @@ if __name__ == '__main__':
         seed=args.seed,
         num_workers=args.num_workers,
         preload_ram=(not args.no_preload_ram),
-        save_all_epochs=args.save_all_epochs
+        save_all_epochs=args.save_all_epochs,
+        alpha_zhao=args.alpha_zhao,
+        w_gfl=args.w_gfl
     )
