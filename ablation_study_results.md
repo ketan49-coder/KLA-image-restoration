@@ -13,30 +13,24 @@
 | **Run 6** | Zhao Paper (2.5% MS-SSIM) | 23.15 | 0.6814 | 0.3475 | 6 | 2.5% too weak for SEM |
 | **Run 7** | Zhao SEM (15% MS-SSIM) | 23.34 | 0.6936 | 0.3446 | 7 | Photometric balance |
 | **Run 8** | Structure-Dominant (85% MS-SSIM)| 23.32 | **0.7071** ⭐ | **0.3317** 🏆 | 8 | Structural & LPIPS Record |
-| **Run 9** | **Balanced 50/50 (50% MS-SSIM)**| **23.35** 🏆 | 0.7013 | 0.3390 | **8** | **ALL-TIME PSNR RECORD (23.35 dB)! (+0.79 dB over baseline)** |
-| **Run 10**| Pure GFL (2D FFT) | — | — | — | — | *Pending — Next Up!* |
-| **Run 11**| Full Compound (Zhao + GFL) | — | — | — | — | *Pending (Flagship Finale)* |
+| **Run 9** | Balanced 50/50 (50% MS-SSIM)| **23.35** 🏆 | 0.7013 | 0.3390 | 8 | All-time PSNR record |
+| **Run 10**| **Pure GFL (2D FFT)** | 20.84 | 0.5583 | 0.4210 | 8 | Proves spectral loss needs spatial anchor! |
+| **Run 11**| **Full Compound (Zhao + GFL)** | — | — | — | — | *Pending — Grand Finale!* |
 
 ---
 
-## 🔬 Special Technical Analysis: The 4-Point Structural Ratio Sensitivity Curve
+## 🔬 Special Technical Analysis: Why Frequency Loss Cannot Stand Alone
 
-### The Complete Pareto Frontier:
-```
-┌─────────────────────────┬──────────────┬───────────────┬────────────────┬──────────────────────────────┐
-│ MS-SSIM Weighting Ratio │ Best PSNR    │ Best SSIM     │ Best LPIPS (↓) │ Operational Sweet Spot       │
-├─────────────────────────┼──────────────┼───────────────┼────────────────┼──────────────────────────────┤
-│ 2.5% (Run 6 - Paper)    │ 23.15 dB     │ 0.6814        │ 0.3475         │ Under-weighted structure     │
-│ 15.0% (Run 7 - SEM)     │ 23.34 dB     │ 0.6936        │ 0.3446         │ Balanced Photometric anchor  │
-│ 50.0% (Run 9 - 50/50)   │ 23.35 dB 🏆  │ 0.7013        │ 0.3390         │ 🌟 APEX PSNR CHAMPION (23.35)│
-│ 85.0% (Run 8 - Dominant)│ 23.32 dB     │ 0.7071 🏆     │ 0.3317 🏆      │ 🌟 APEX SSIM & LPIPS LEADER  │
-└─────────────────────────┴──────────────┴───────────────┴────────────────┴──────────────────────────────┘
-```
+### The Discovery in Run 10:
+When trained **purely on 2D Fourier Frequency Loss (GFL)**:
+- Val PSNR: **20.84 dB** | Val SSIM: **0.5583** | Val LPIPS: **0.4210**
 
-### Key Scientific Conclusions:
-1. **50/50 Balanced Ratio (Run 9)** delivers the **highest overall PSNR (23.3518 dB)** across the entire project by creating perfect gradient equilibrium between Gaussian-L1 intensity regression and Multi-Scale structural coherence.
-2. **85% Structure-Dominant Ratio (Run 8)** delivers the **highest perceptual sharpness (0.3317 LPIPS)** and structural precision (**0.7071 SSIM**).
-3. Both 50% and 85% conclusively outperform the 2.5% paper default, proving that SEM image restoration requires high structural weighting.
+### The Physics Behind This Result:
+1. **Shift Invariance of Fourier Magnitude:** The Fourier amplitude $|\mathcal{F}(x)|$ measures *how much* high and low frequency exists, but Fourier magnitude alone does not penalize slight spatial coordinate offsets or local DC brightness drift in the image domain.
+2. **Why GFL Must Be a Regularizer, NOT a Standalone Loss:**
+   - In computer vision literature, frequency losses (e.g., Focal Frequency Loss, GFL) are **designed as auxiliary regularizers ($\approx 10\text{--}15\%$)** alongside a strong spatial loss.
+   - The spatial loss (Zhao / MS-SSIM + Gaussian-L1) anchors exact pixel coordinates and luminance, while GFL sharpens high-frequency Fourier transitions at nanometer edges.
+3. This creates the exact empirical justification for **Run 11: Full Compound Loss**!
 
 ---
 
@@ -86,10 +80,15 @@
 ---
 
 ## Run 9 — Balanced 50/50 (50% MS-SSIM + 50% Gaussian-L1)
+**Result:** Best PSNR = 23.35 dB (Epoch 8) | Best SSIM = 0.7013 (Epoch 8) | Best LPIPS = 0.3390 (Epoch 9)
+
+---
+
+## Run 10 — Pure Guided Frequency Loss (GFL via 2D FFT)
 
 **Command:**
 ```bash
-!python trainn.py --stage stage_2 --loss msssim_50 --run_number 9 --epochs 9 --use_drive \
+!python trainn.py --stage stage_2 --loss gfl --run_number 10 --epochs 9 --use_drive \
     --data_dir "/content/train/train"
 ```
 
@@ -97,28 +96,22 @@
 
 | Epoch | Train Loss | Val Loss | Val PSNR (dB) | Val SSIM | Val LPIPS (↓) | LR | Status |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| 1 | 0.1109 | 0.0853 | 22.3123 | 0.6752 | 0.3699 | 0.0010 | |
-| 2 | 0.0926 | 0.0824 | 22.7107 | 0.6813 | 0.3662 | 0.0010 | 🌟 Early Best |
-| 3 | 0.0876 | 0.0812 | 22.6708 | 0.6840 | 0.3824 | 0.0010 | |
-| 4 | 0.0855 | 0.0849 | 21.8965 | 0.6916 | 0.3854 | 0.0010 | |
-| 5 | 0.0837 | 0.0773 | 23.0576 | 0.6923 | 0.3570 | 0.0010 | 🌟 Surging |
-| 6 | 0.0830 | 0.0745 | 23.2377 | 0.7001 | 0.3632 | 0.0010 | 🌟 Broke 0.70 SSIM |
-| 7 | 0.0806 | 0.0729 | 23.3064 | 0.7010 | 0.3407 | 0.0010 | 🌟 23.31 dB |
-| 8 | 0.0802 | **0.0725** | **23.3518** 🏆 | **0.7013** 🌟 | 0.3453 | 0.0010 | 🌟 **NEW ALL-TIME PSNR RECORD (23.35 dB)** |
-| 9 | 0.0804 | 0.0755 | 23.2467 | 0.6944 | **0.3390** 🌟 | 0.0010 | 🌟 Best LPIPS |
+| 1 | 1180.35 | 772.41 | 20.8304 | 0.5499 | 0.4858 | 0.0010 | |
+| 2 | 968.78 | 899.84 | 19.8327 | 0.5054 | 0.4713 | 0.0010 | |
+| 3 | 921.91 | 764.43 | 20.6003 | 0.5535 | 0.4588 | 0.0010 | |
+| 4 | 902.75 | 918.85 | 20.0782 | **0.5583** 🌟 | 0.4718 | 0.0010 | 🌟 Best SSIM |
+| 5 | 840.55 | 704.94 | 20.8269 | 0.5201 | 0.4354 | 0.0005 | LR cut to 0.0005 |
+| 6 | 819.97 | 705.81 | 20.7786 | 0.5420 | 0.4268 | 0.0005 | |
+| 7 | 812.46 | 761.07 | 20.5110 | 0.5448 | 0.4256 | 0.0005 | |
+| 8 | 777.26 | **672.38** | **20.8416** 🌟 | 0.5436 | **0.4210** 🌟 | 0.00025 | LR cut to 0.00025 |
+| 9 | 767.58 | 684.72 | 20.7766 | 0.5328 | 0.4217 | 0.00025 | |
 
 ---
 
-## Run 10 — Pure Guided Frequency Loss (GFL via 2D FFT)
+## Run 11 — Full Compound Loss (Zhao Mix + Guided Frequency Loss)
 
-*Results pending — Next Up!*
+*Results pending — The Flagship Grand Finale!*
 
-### What GFL Loss Does
-- Formula: $\mathcal{L}_{\text{GFL}} = \frac{1}{HW} \sum | \mathcal{F}(pred) - \mathcal{F}(gt) |$
-- Computes the 2D Fast Fourier Transform into the frequency domain.
-- Evaluates spatial frequency power, specifically penalizing high-frequency attenuation where subtle edge blur occurs.
-
----
-
-## Run 11 — Full Compound Loss (Zhao Mix + GFL)
-*Pending (Flagship Finale)*
+### What Full Compound Loss Does:
+$$\mathcal{L}_{\text{Compound}} = (1 - w_{\text{GFL}}) \cdot \mathcal{L}_{\text{Zhao}} + w_{\text{GFL}} \cdot \mathcal{L}_{\text{GFL}}$$
+- Combines the best spatial multi-scale structural engine (Zhao Mix) with spectral frequency sharpening (2D FFT).
