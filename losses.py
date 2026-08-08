@@ -219,9 +219,22 @@ class SSIMLoss(nn.Module):
         return 1.0 - (l_val * cs_val)
 
 
+class L1SSIMLoss(nn.Module):
+    """Exp 2.5: Pixel + Single-scale structure (0.8 * L1 + 0.2 * (1 - SSIM))"""
+    def __init__(self, alpha=0.8, window_size=11):
+        super(L1SSIMLoss, self).__init__()
+        self.alpha = alpha
+        self.l1 = nn.L1Loss()
+        self.ssim_loss = SSIMLoss(window_size=window_size)
+
+    def forward(self, pred, target):
+        return self.alpha * self.l1(pred, target) + (1.0 - self.alpha) * self.ssim_loss(pred, target)
+
+
 def get_loss_function(name="baseline"):
     """
     Factory function for ablation experiments.
+    Supports all standard and combined experiment flags.
     """
     name = name.lower()
     if name == "l1":
@@ -234,19 +247,23 @@ def get_loss_function(name="baseline"):
         return SSIMLoss()
     elif name in ["msssim", "exact_msssim"]:
         return ExactMSSSIMLoss()
+    elif name in ["l1_ssim", "l1+ssim"]:
+        # 0.8 L1 + 0.2 (1 - SSIM)
+        return L1SSIMLoss(alpha=0.8)
     elif name in ["zhao_paper", "zhao_0025"]:
         # Exact paper default (alpha=0.025, 97.5% L1 + 2.5% MS-SSIM)
         return ZhaoMixLoss(alpha=0.025)
-    elif name in ["zhao_sem", "zhao_015", "l1_msssim"]:
+    elif name in ["zhao_sem", "zhao_015", "l1_msssim", "l1+msssim"]:
         # Tuned for SEM edge contrast (alpha=0.15, 85% L1 + 15% MS-SSIM)
         return ZhaoMixLoss(alpha=0.15)
     elif name == "gfl":
         return GuidedFrequencyLoss(alpha=0.2)
-    elif name in ["compound", "l1_msssim_gfl", "all"]:
+    elif name in ["compound", "l1_msssim_gfl", "all", "l1+msssim+gfl"]:
         # Full compound: Zhao Mix + Guided Frequency Loss
         return CompoundRestorationLoss(alpha_zhao=0.15, w_gfl=0.15)
     elif name == "baseline":
         return CombinedLoss()
     else:
         raise ValueError(f"Unknown loss: '{name}'. Choose from: "
-                         f"['l1', 'l2', 'g_l1', 'ssim', 'msssim', 'zhao_paper', 'zhao_sem', 'gfl', 'compound', 'baseline']")
+                         f"['l1', 'l2', 'ssim', 'msssim', 'l1_ssim', 'l1_msssim', 'zhao_paper', 'zhao_sem', 'gfl', 'l1_msssim_gfl', 'compound', 'baseline']")
+
