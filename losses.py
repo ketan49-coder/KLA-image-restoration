@@ -263,12 +263,18 @@ def get_loss_function(name="baseline", alpha_zhao=0.85, w_gfl=0.10):
     elif name in ["msssim_85", "zhao_85", "msssim_dominant"]:
         # Structure-dominant (alpha=0.85, 85% MS-SSIM + 15% Gaussian-L1)
         return ZhaoMixLoss(alpha=0.85)
+    elif name in ["msssim_90", "zhao_90"]:
+        # Ultra structure-dominant (alpha=0.90, 90% MS-SSIM + 10% Gaussian-L1)
+        return ZhaoMixLoss(alpha=0.90)
     elif name == "gfl":
         return GuidedFrequencyLoss(alpha=0.2)
     elif name in ["compound_05", "compound_5"]:
         return CompoundRestorationLoss(alpha_zhao=alpha_zhao, w_gfl=0.05)
     elif name in ["compound_10", "compound_1"]:
         return CompoundRestorationLoss(alpha_zhao=alpha_zhao, w_gfl=0.10)
+    elif name in ["compound_90", "compound_90_10"]:
+        # Zhao-90 (90% MS-SSIM + 10% G-L1) + 10% GFL
+        return CompoundRestorationLoss(alpha_zhao=0.90, w_gfl=0.10)
     elif name in ["compound_20", "compound_2"]:
         return CompoundRestorationLoss(alpha_zhao=alpha_zhao, w_gfl=0.20)
     elif name in ["compound_30", "compound_3"]:
@@ -280,5 +286,5 @@ def get_loss_function(name="baseline", alpha_zhao=0.85, w_gfl=0.10):
         return CombinedLoss()
     else:
         raise ValueError(f"Unknown loss: '{name}'. Choose from: "
-                         f"['l1', 'l2', 'ssim', 'msssim', 'l1_ssim', 'l1_msssim', 'zhao_paper', 'zhao_sem', 'msssim_50', 'msssim_85', 'gfl', 'compound', 'compound_05', 'compound_10', 'compound_20', 'compound_30', 'baseline']")
+                         f"['l1', 'l2', 'ssim', 'msssim', 'l1_ssim', 'l1_msssim', 'zhao_paper', 'zhao_sem', 'msssim_50', 'msssim_85', 'msssim_90', 'gfl', 'compound', 'compound_90', 'compound_05', 'compound_10', 'compound_20', 'compound_30', 'baseline']")
 
