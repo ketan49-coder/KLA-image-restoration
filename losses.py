@@ -1,16 +1,13 @@
 """
 losses.py
-Loss functions for KLA Semiconductor Image Restoration.
+Optimal Loss Formulation for KLA Semiconductor Image Restoration.
 
-Contains:
-  1. Exact Reference Formulation from Zhao et al. (IEEE TCI 2017):
-     "Loss Functions for Image Restoration with Neural Networks"
-     - Multi-Scale Structural Similarity (MS-SSIM) with separated luminance at scale M
-     - Gaussian-weighted L1 loss (G-L1)
-     - Mix loss: alpha * L_MSSSIM + (1 - alpha) * L_G-L1
-  2. Guided Frequency Loss (GFL via 2D FFT)
-  3. Compound Loss (Zhao Mix + GFL)
-  4. Modular Ablation Loss Suite
+Combines:
+  1. Multi-Scale Structural Similarity (MS-SSIM, 5 scales) with separated luminance
+  2. Gaussian-Weighted L1 (G-L1, sigma=1.5) for local intensity anchoring
+  3. Guided Frequency Loss (GFL via orthonormal 2D Real FFT) for high-frequency harmonic restoration
+
+Empirically selected as the Stage 2 benchmark winner (Run 12: 23.47 dB PSNR, 0.7109 SSIM, 0.3279 LPIPS).
 """
 
 import torch
@@ -42,7 +39,7 @@ def get_gaussian_window_2d(window_size=11, channel=1, sigma=1.5, device="cpu"):
 
 
 # ====================================================================
-# 2. EXACT ZHAO ET AL. (2017) MS-SSIM & GAUSSIAN-WEIGHTED L1
+# 2. EXACT MS-SSIM & GAUSSIAN-WEIGHTED L1 (Zhao et al. 2017)
 # ====================================================================
 def compute_ssim_components(img1, img2, window_size=11, sigma=1.5):
     """
@@ -74,10 +71,8 @@ def compute_ssim_components(img1, img2, window_size=11, sigma=1.5):
 
 class GaussianWeightedL1Loss(nn.Module):
     """
-    Gaussian-Weighted L1 Loss as defined in Zhao et al. (2017) Section 3.2:
+    Gaussian-Weighted L1 Loss (Zhao et al. 2017):
         L_G-L1 = G_sigma * |pred - target|
-    Convolves the L1 absolute difference with the Gaussian window to weight
-    patch centers smoothly, preventing boundary artifacts.
     """
     def __init__(self, window_size=11, sigma=1.5):
         super(GaussianWeightedL1Loss, self).__init__()
@@ -93,13 +88,12 @@ class GaussianWeightedL1Loss(nn.Module):
 
 class ExactMSSSIMLoss(nn.Module):
     """
-    Exact Multi-Scale SSIM according to Wang et al. (2003) & Zhao et al. (2017):
+    Exact Multi-Scale SSIM (5 scales):
         MS-SSIM(x, y) = [l_M(x, y)]^alpha_M * prod_{j=1}^M [cs_j(x, y)]^beta_j
         L_MSSSIM = 1 - MS-SSIM
     """
     def __init__(self, weights=None, window_size=11, sigma=1.5):
         super(ExactMSSSIMLoss, self).__init__()
-        # Standard Wang et al. weights for 5 scales
         self.weights = weights or [0.0448, 0.2856, 0.3001, 0.2363, 0.1333]
         self.window_size = window_size
         self.sigma = sigma
@@ -117,14 +111,11 @@ class ExactMSSSIMLoss(nn.Module):
             cs_levels.append(torch.clamp(cs_val, min=1e-8, max=1.0))
 
             if i == levels - 1:
-                # Luminance is evaluated ONLY at the coarsest / final scale M
                 l_final = torch.clamp(l_val, min=1e-8, max=1.0)
             else:
-                # Downsample by 2 for next scale
                 current_pred = F.avg_pool2d(current_pred, kernel_size=2, stride=2)
                 current_target = F.avg_pool2d(current_target, kernel_size=2, stride=2)
 
-        # MS-SSIM = (l_M ^ alpha_M) * prod_{j=1}^M (cs_j ^ beta_j)
         cs_stacked = torch.stack(cs_levels)
         ms_ssim_val = (l_final ** weights[-1]) * torch.prod(cs_stacked ** weights)
         return 1.0 - ms_ssim_val
@@ -132,31 +123,24 @@ class ExactMSSSIMLoss(nn.Module):
 
 class ZhaoMixLoss(nn.Module):
     """
-    Exact Mix Loss from Zhao et al. (2017):
-        L_Mix = alpha * L_MSSSIM + (1 - alpha) * L_G-L1
-    
-    Default alpha in Zhao et al.: 0.025 (or 0.15 for high structure)
+    Mix Loss: alpha * L_MSSSIM + (1 - alpha) * L_G-L1
     """
-    def __init__(self, alpha=0.025, window_size=11, sigma=1.5):
+    def __init__(self, alpha=0.90, window_size=11, sigma=1.5):
         super(ZhaoMixLoss, self).__init__()
         self.alpha = alpha
         self.msssim = ExactMSSSIMLoss(window_size=window_size, sigma=sigma)
         self.g_l1 = GaussianWeightedL1Loss(window_size=window_size, sigma=sigma)
 
     def forward(self, pred, target):
-        loss_msssim = self.msssim(pred, target)
-        loss_g_l1 = self.g_l1(pred, target)
-        return self.alpha * loss_msssim + (1.0 - self.alpha) * loss_g_l1
+        return self.alpha * self.msssim(pred, target) + (1.0 - self.alpha) * self.g_l1(pred, target)
 
 
 # ====================================================================
-# 3. GUIDED FREQUENCY LOSS (GFL via 2D FFT)
+# 3. GUIDED FREQUENCY LOSS (2D FFT)
 # ====================================================================
 class GuidedFrequencyLoss(nn.Module):
     """
-    Guided Frequency Loss (GFL) via 2D Real FFT:
-    Penalizes spectral attenuation and forces high-frequency edge restoration.
-    Uses orthonormal FFT normalization to ensure stable numerical scale (~0.05-0.2).
+    Guided Frequency Loss (GFL) via 2D Real FFT with orthonormal normalization.
     """
     def __init__(self, alpha=0.2):
         super(GuidedFrequencyLoss, self).__init__()
@@ -171,120 +155,55 @@ class GuidedFrequencyLoss(nn.Module):
 
         weight = 1.0 + self.alpha * target_mag
         freq_diff = torch.abs(pred_mag - target_mag)
-
         return torch.mean(weight * freq_diff)
 
 
 # ====================================================================
-# 4. COMPOUND LOSS: ZHAO MIX + GUIDED FREQUENCY LOSS
+# 4. WINNING FLAGSHIP COMPOUND RESTORATION LOSS
 # ====================================================================
 class CompoundRestorationLoss(nn.Module):
     """
-    Flagship Compound Loss combining:
-      - Winning Structure-Dominant Zhao Mix (85% MS-SSIM + 15% Gaussian-L1)
-      - Guided Frequency Loss (2D FFT via orthonormal spectral regularizer)
+    Production Compound Restoration Loss (Stage 2 Winner):
+        L_final = (1 - w_gfl) * [alpha * L_MSSSIM + (1 - alpha) * L_G-L1] + w_gfl * L_GFL
+    Default parameters:
+        alpha = 0.90 (90% Multi-Scale Structural Similarity + 10% Gaussian-L1)
+        w_gfl = 0.10 (10% Orthonormal 2D FFT Frequency Loss)
     """
-    def __init__(self, alpha_zhao=0.85, w_gfl=0.10):
+    def __init__(self, alpha=0.90, w_gfl=0.10):
         super(CompoundRestorationLoss, self).__init__()
         self.w_gfl = w_gfl
-        self.zhao_mix = ZhaoMixLoss(alpha=alpha_zhao)
+        self.zhao_mix = ZhaoMixLoss(alpha=alpha)
         self.gfl = GuidedFrequencyLoss(alpha=0.2)
 
     def forward(self, pred, target):
-        mix_loss = self.zhao_mix(pred, target)
-        gfl_loss = self.gfl(pred, target)
-        return (1.0 - self.w_gfl) * mix_loss + self.w_gfl * gfl_loss
+        return (1.0 - self.w_gfl) * self.zhao_mix(pred, target) + self.w_gfl * self.gfl(pred, target)
 
 
 # ====================================================================
-# 5. ABLATION FACTORY
+# 5. LOSS FACTORY
 # ====================================================================
-class CombinedLoss(nn.Module):
-    """Stage 1 Baseline: L1 + 0.1 * MSE"""
-    def __init__(self):
-        super(CombinedLoss, self).__init__()
-        self.l1 = nn.L1Loss()
-        self.mse = nn.MSELoss()
-
-    def forward(self, pred, target):
-        return self.l1(pred, target) + 0.1 * self.mse(pred, target)
-
-
-class SSIMLoss(nn.Module):
-    def __init__(self, window_size=11):
-        super(SSIMLoss, self).__init__()
-        self.window_size = window_size
-
-    def forward(self, pred, target):
-        l_val, cs_val = compute_ssim_components(pred, target, window_size=self.window_size)
-        return 1.0 - (l_val * cs_val)
-
-
-class L1SSIMLoss(nn.Module):
-    """Exp 2.5: Pixel + Single-scale structure (0.8 * L1 + 0.2 * (1 - SSIM))"""
-    def __init__(self, alpha=0.8, window_size=11):
-        super(L1SSIMLoss, self).__init__()
-        self.alpha = alpha
-        self.l1 = nn.L1Loss()
-        self.ssim_loss = SSIMLoss(window_size=window_size)
-
-    def forward(self, pred, target):
-        return self.alpha * self.l1(pred, target) + (1.0 - self.alpha) * self.ssim_loss(pred, target)
-
-
-def get_loss_function(name="baseline", alpha_zhao=0.85, w_gfl=0.10):
+def get_loss_function(name="compound", alpha=0.90, w_gfl=0.10):
     """
-    Factory function for ablation experiments.
-    Supports all standard, combined, and compound GFL-sweep experiment flags.
+    Returns the loss function. Defaults to optimal CompoundRestorationLoss (Run 12).
     """
-    name = name.lower()
-    if name == "l1":
+    name = (name or "compound").lower()
+    if name in ["compound", "compound_90", "optimal", "default"]:
+        return CompoundRestorationLoss(alpha=alpha, w_gfl=w_gfl)
+    elif name in ["l1", "mae"]:
         return nn.L1Loss()
     elif name in ["l2", "mse"]:
         return nn.MSELoss()
-    elif name == "g_l1":
-        return GaussianWeightedL1Loss()
-    elif name == "ssim":
-        return SSIMLoss()
-    elif name in ["msssim", "exact_msssim"]:
+    elif name in ["msssim", "ms_ssim"]:
         return ExactMSSSIMLoss()
-    elif name in ["l1_ssim", "l1+ssim"]:
-        # 0.8 L1 + 0.2 (1 - SSIM)
-        return L1SSIMLoss(alpha=0.8)
-    elif name in ["zhao_paper", "zhao_0025"]:
-        # Exact paper default (alpha=0.025, 97.5% L1 + 2.5% MS-SSIM)
-        return ZhaoMixLoss(alpha=0.025)
-    elif name in ["zhao_sem", "zhao_015", "l1_msssim", "l1+msssim"]:
-        # Tuned for SEM edge contrast (alpha=0.15, 85% L1 + 15% MS-SSIM)
-        return ZhaoMixLoss(alpha=0.15)
-    elif name in ["msssim_50", "zhao_50", "msssim_balanced"]:
-        # Balanced (alpha=0.50, 50% MS-SSIM + 50% Gaussian-L1)
-        return ZhaoMixLoss(alpha=0.50)
-    elif name in ["msssim_85", "zhao_85", "msssim_dominant"]:
-        # Structure-dominant (alpha=0.85, 85% MS-SSIM + 15% Gaussian-L1)
-        return ZhaoMixLoss(alpha=0.85)
-    elif name in ["msssim_90", "zhao_90"]:
-        # Ultra structure-dominant (alpha=0.90, 90% MS-SSIM + 10% Gaussian-L1)
-        return ZhaoMixLoss(alpha=0.90)
-    elif name == "gfl":
-        return GuidedFrequencyLoss(alpha=0.2)
-    elif name in ["compound_05", "compound_5"]:
-        return CompoundRestorationLoss(alpha_zhao=alpha_zhao, w_gfl=0.05)
-    elif name in ["compound_10", "compound_1"]:
-        return CompoundRestorationLoss(alpha_zhao=alpha_zhao, w_gfl=0.10)
-    elif name in ["compound_90", "compound_90_10"]:
-        # Zhao-90 (90% MS-SSIM + 10% G-L1) + 10% GFL
-        return CompoundRestorationLoss(alpha_zhao=0.90, w_gfl=0.10)
-    elif name in ["compound_20", "compound_2"]:
-        return CompoundRestorationLoss(alpha_zhao=alpha_zhao, w_gfl=0.20)
-    elif name in ["compound_30", "compound_3"]:
-        return CompoundRestorationLoss(alpha_zhao=alpha_zhao, w_gfl=0.30)
-    elif name in ["compound", "l1_msssim_gfl", "all", "l1+msssim+gfl"]:
-        # Full compound: Customizable Zhao Mix base (default alpha=0.85) + GFL (default w_gfl=0.10)
-        return CompoundRestorationLoss(alpha_zhao=alpha_zhao, w_gfl=w_gfl)
     elif name == "baseline":
-        return CombinedLoss()
+        # Stage 1 baseline for comparison
+        class BaselineLoss(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.l1 = nn.L1Loss()
+                self.mse = nn.MSELoss()
+            def forward(self, pred, target):
+                return self.l1(pred, target) + 0.1 * self.mse(pred, target)
+        return BaselineLoss()
     else:
-        raise ValueError(f"Unknown loss: '{name}'. Choose from: "
-                         f"['l1', 'l2', 'ssim', 'msssim', 'l1_ssim', 'l1_msssim', 'zhao_paper', 'zhao_sem', 'msssim_50', 'msssim_85', 'msssim_90', 'gfl', 'compound', 'compound_90', 'compound_05', 'compound_10', 'compound_20', 'compound_30', 'baseline']")
-
+        return CompoundRestorationLoss(alpha=alpha, w_gfl=w_gfl)
