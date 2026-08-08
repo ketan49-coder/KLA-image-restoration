@@ -36,10 +36,25 @@ class ImageRestorationDataset(Dataset):
             is_val = (split.lower() == 'val' or split.lower() == 'validation')
         self.is_val = is_val
 
-        # Auto-detect GT folder
-        possible_gt = glob.glob(os.path.join(data_dir, '**/GT'), recursive=True)
-        self.gt_dir = possible_gt[0] if possible_gt else os.path.join(data_dir, 'GT')
+        # Auto-detect GT folder (ignoring __MACOSX zip artifacts)
+        if os.path.exists(os.path.join(data_dir, 'GT')) and '__MACOSX' not in data_dir:
+            self.gt_dir = os.path.join(data_dir, 'GT')
+        else:
+            candidates = [p for p in glob.glob(os.path.join(data_dir, '**/GT'), recursive=True) if '__MACOSX' not in p]
+            if not candidates:
+                # Fallback to search in common colab/drive paths
+                for fb in ['/content/drive/MyDrive/KLA_project', '/content/drive/MyDrive', '/content']:
+                    if os.path.exists(fb):
+                        candidates.extend([p for p in glob.glob(os.path.join(fb, '**/GT'), recursive=True) if '__MACOSX' not in p])
+            
+            if candidates:
+                self.gt_dir = candidates[0]
+            else:
+                self.gt_dir = os.path.join(data_dir, 'GT')
+
         self.noisy_dir = self.gt_dir.replace('GT', 'NoisyLR')
+        print(f"📂 Dataset matched GT folder: {self.gt_dir}")
+        print(f"📂 Dataset matched NoisyLR folder: {self.noisy_dir}")
 
         all_files = sorted([f for f in os.listdir(self.gt_dir) if f.endswith('.npy')])
         split_idx = int(len(all_files) * split_ratio)
