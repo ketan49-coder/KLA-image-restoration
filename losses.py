@@ -182,10 +182,12 @@ class CompoundRestorationLoss(nn.Module):
 # ====================================================================
 # 5. LOSS FACTORY
 # ====================================================================
-def get_loss_function(name="compound", alpha=0.90, w_gfl=0.10):
+def get_loss_function(name="compound", alpha=0.90, alpha_zhao=None, w_gfl=0.10, **kwargs):
     """
     Returns the loss function. Defaults to optimal CompoundRestorationLoss (Run 12).
     """
+    if alpha_zhao is not None:
+        alpha = alpha_zhao
     name = (name or "compound").lower()
     if name in ["compound", "compound_90", "optimal", "default"]:
         return CompoundRestorationLoss(alpha=alpha, w_gfl=w_gfl)
@@ -207,3 +209,4 @@ def get_loss_function(name="compound", alpha=0.90, w_gfl=0.10):
         return BaselineLoss()
     else:
         return CompoundRestorationLoss(alpha=alpha, w_gfl=w_gfl)
+
