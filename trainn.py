@@ -186,7 +186,8 @@ def train(
     preload_ram=True,
     save_all_epochs=False,
     alpha_zhao=0.85,
-    w_gfl=0.10
+    w_gfl=0.10,
+    base_channels=64
 ):
     # Set seed
     set_seed(seed)
@@ -228,7 +229,7 @@ def train(
     val_loader = DataLoader(val_dataset, shuffle=False, **loader_kwargs)
 
     # 2. Model Setup
-    model = UNet(in_channels=1, out_channels=1).to(device)
+    model = UNet(in_channels=1, out_channels=1, base_channels=base_channels).to(device)
 
     # 3. Metric Evaluator
     metric_evaluator = RestorationMetrics(device=device, compute_lpips=True)
@@ -379,6 +380,7 @@ if __name__ == '__main__':
     parser.add_argument("--num_workers", type=int, default=2)
     parser.add_argument("--no_preload_ram", action="store_true", help="Disable RAM dataset preloading")
     parser.add_argument("--save_all_epochs", action="store_true", help="Save separate .pth for every single epoch")
+    parser.add_argument("--base_channels", type=int, default=64, help="Base channel count for UNet (use 32 or 16 for efficiency sweep)")
     args = parser.parse_args()
 
     train(
@@ -397,5 +399,6 @@ if __name__ == '__main__':
         preload_ram=(not args.no_preload_ram),
         save_all_epochs=args.save_all_epochs,
         alpha_zhao=args.alpha_zhao,
-        w_gfl=args.w_gfl
+        w_gfl=args.w_gfl,
+        base_channels=args.base_channels
     )

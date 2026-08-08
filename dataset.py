@@ -6,13 +6,15 @@ import glob
 import random
 
 
-def normalize_image(img_tensor):
+def normalize_image(img_tensor, min_val=None, max_val=None):
     """
-    Standard Min-Max normalization to [0.0, 1.0].
-    Used consistently across training, evaluation, and test set inference.
+    Standard Min-Max normalization.
+    If min_val and max_val are provided, uses those instead of computing them from the tensor.
     """
-    min_val = img_tensor.min()
-    max_val = img_tensor.max()
+    if min_val is None:
+        min_val = img_tensor.min()
+    if max_val is None:
+        max_val = img_tensor.max()
     return (img_tensor - min_val) / (max_val - min_val + 1e-8), min_val, max_val
 
 
@@ -57,8 +59,9 @@ class ImageRestorationDataset(Dataset):
                 gt_t = torch.from_numpy(gt_arr).float().unsqueeze(0)
                 noisy_t = torch.from_numpy(noisy_arr).float().unsqueeze(0)
 
-                gt_t, _, _ = normalize_image(gt_t)
-                noisy_t, _, _ = normalize_image(noisy_t)
+                # GT-Anchored Normalization
+                gt_t, gt_min, gt_max = normalize_image(gt_t)
+                noisy_t, _, _ = normalize_image(noisy_t, min_val=gt_min, max_val=gt_max)
 
                 self.gt_cache.append(gt_t)
                 self.noisy_cache.append(noisy_t)
@@ -79,9 +82,9 @@ class ImageRestorationDataset(Dataset):
             gt = torch.from_numpy(gt).float().unsqueeze(0)
             noisy = torch.from_numpy(noisy).float().unsqueeze(0)
 
-            # Standard Min-Max normalization
-            gt, _, _ = normalize_image(gt)
-            noisy, _, _ = normalize_image(noisy)
+            # GT-Anchored Normalization
+            gt, gt_min, gt_max = normalize_image(gt)
+            noisy, _, _ = normalize_image(noisy, min_val=gt_min, max_val=gt_max)
 
         if not self.is_val:
             # Random horizontal flip

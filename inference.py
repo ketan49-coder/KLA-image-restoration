@@ -6,9 +6,17 @@ import torch
 from model import UNet
 
 def normalize_image(img_tensor):
-    min_val = img_tensor.min()
-    max_val = img_tensor.max()
-    norm_tensor = (img_tensor - min_val) / (max_val - min_val + 1e-8)
+    """
+    Robust Normalization using 1st and 99th percentiles to ignore speckle spikes.
+    """
+    # Flatten tensor to calculate quantiles
+    flat = img_tensor.contiguous().view(-1)
+    min_val = torch.quantile(flat, 0.01).item()
+    max_val = torch.quantile(flat, 0.99).item()
+    
+    # Clip and normalize
+    clipped = torch.clamp(img_tensor, min_val, max_val)
+    norm_tensor = (clipped - min_val) / (max_val - min_val + 1e-8)
     return norm_tensor, min_val, max_val
 
 def denormalize_image(norm_tensor, min_val, max_val):
