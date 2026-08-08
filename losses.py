@@ -232,10 +232,10 @@ class L1SSIMLoss(nn.Module):
         return self.alpha * self.l1(pred, target) + (1.0 - self.alpha) * self.ssim_loss(pred, target)
 
 
-def get_loss_function(name="baseline"):
+def get_loss_function(name="baseline", alpha_zhao=0.85, w_gfl=0.10):
     """
     Factory function for ablation experiments.
-    Supports all standard and combined experiment flags.
+    Supports all standard, combined, and compound GFL-sweep experiment flags.
     """
     name = name.lower()
     if name == "l1":
@@ -265,12 +265,20 @@ def get_loss_function(name="baseline"):
         return ZhaoMixLoss(alpha=0.85)
     elif name == "gfl":
         return GuidedFrequencyLoss(alpha=0.2)
+    elif name in ["compound_05", "compound_5"]:
+        return CompoundRestorationLoss(alpha_zhao=alpha_zhao, w_gfl=0.05)
+    elif name in ["compound_10", "compound_1"]:
+        return CompoundRestorationLoss(alpha_zhao=alpha_zhao, w_gfl=0.10)
+    elif name in ["compound_20", "compound_2"]:
+        return CompoundRestorationLoss(alpha_zhao=alpha_zhao, w_gfl=0.20)
+    elif name in ["compound_30", "compound_3"]:
+        return CompoundRestorationLoss(alpha_zhao=alpha_zhao, w_gfl=0.30)
     elif name in ["compound", "l1_msssim_gfl", "all", "l1+msssim+gfl"]:
-        # Full compound: Winning 85% Structure-Dominant Zhao Mix + 10% Orthonormal GFL
-        return CompoundRestorationLoss(alpha_zhao=0.85, w_gfl=0.10)
+        # Full compound: Customizable Zhao Mix base (default alpha=0.85) + GFL (default w_gfl=0.10)
+        return CompoundRestorationLoss(alpha_zhao=alpha_zhao, w_gfl=w_gfl)
     elif name == "baseline":
         return CombinedLoss()
     else:
         raise ValueError(f"Unknown loss: '{name}'. Choose from: "
-                         f"['l1', 'l2', 'ssim', 'msssim', 'l1_ssim', 'l1_msssim', 'zhao_paper', 'zhao_sem', 'msssim_50', 'msssim_85', 'gfl', 'l1_msssim_gfl', 'compound', 'baseline']")
+                         f"['l1', 'l2', 'ssim', 'msssim', 'l1_ssim', 'l1_msssim', 'zhao_paper', 'zhao_sem', 'msssim_50', 'msssim_85', 'gfl', 'compound', 'compound_05', 'compound_10', 'compound_20', 'compound_30', 'baseline']")
 
