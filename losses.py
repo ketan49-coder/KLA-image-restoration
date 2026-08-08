@@ -256,6 +256,9 @@ def get_loss_function(name="baseline"):
     elif name in ["zhao_sem", "zhao_015", "l1_msssim", "l1+msssim"]:
         # Tuned for SEM edge contrast (alpha=0.15, 85% L1 + 15% MS-SSIM)
         return ZhaoMixLoss(alpha=0.15)
+    elif name in ["msssim_85", "zhao_85", "msssim_dominant"]:
+        # Structure-dominant (alpha=0.85, 85% MS-SSIM + 15% Gaussian-L1)
+        return ZhaoMixLoss(alpha=0.85)
     elif name == "gfl":
         return GuidedFrequencyLoss(alpha=0.2)
     elif name in ["compound", "l1_msssim_gfl", "all", "l1+msssim+gfl"]:
@@ -265,5 +268,5 @@ def get_loss_function(name="baseline"):
         return CombinedLoss()
     else:
         raise ValueError(f"Unknown loss: '{name}'. Choose from: "
-                         f"['l1', 'l2', 'ssim', 'msssim', 'l1_ssim', 'l1_msssim', 'zhao_paper', 'zhao_sem', 'gfl', 'l1_msssim_gfl', 'compound', 'baseline']")
+                         f"['l1', 'l2', 'ssim', 'msssim', 'l1_ssim', 'l1_msssim', 'zhao_paper', 'zhao_sem', 'msssim_85', 'gfl', 'l1_msssim_gfl', 'compound', 'baseline']")
 
