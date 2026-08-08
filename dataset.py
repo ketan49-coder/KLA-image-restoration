@@ -53,8 +53,8 @@ class ImageRestorationDataset(Dataset):
                 self.gt_dir = os.path.join(data_dir, 'GT')
 
         self.noisy_dir = self.gt_dir.replace('GT', 'NoisyLR')
-        print(f"📂 Dataset matched GT folder: {self.gt_dir}")
-        print(f"📂 Dataset matched NoisyLR folder: {self.noisy_dir}")
+        print(f"[DATASET] Matched GT folder: {self.gt_dir}")
+        print(f"[DATASET] Matched NoisyLR folder: {self.noisy_dir}")
 
         all_files = sorted([f for f in os.listdir(self.gt_dir) if f.endswith('.npy')])
         split_idx = int(len(all_files) * split_ratio)

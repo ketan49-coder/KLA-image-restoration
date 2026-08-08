@@ -59,16 +59,21 @@ class ChannelAttention(nn.Module):
 
 class ResidualBlock(nn.Module):
     """
-    Residual Convolutional Block with LeakyReLU and Channel Attention.
+    Residual Convolutional Block with BatchNorm, LeakyReLU, and Channel Attention.
     """
     def __init__(self, in_ch, out_ch):
         super(ResidualBlock, self).__init__()
         self.conv = nn.Sequential(
             nn.Conv2d(in_ch, out_ch, 3, padding=1),
+            nn.BatchNorm2d(out_ch),
             nn.LeakyReLU(0.1, inplace=True),
             nn.Conv2d(out_ch, out_ch, 3, padding=1),
+            nn.BatchNorm2d(out_ch),
         )
-        self.shortcut = nn.Conv2d(in_ch, out_ch, 1) if in_ch != out_ch else nn.Identity()
+        self.shortcut = nn.Sequential(
+            nn.Conv2d(in_ch, out_ch, 1),
+            nn.BatchNorm2d(out_ch)
+        ) if in_ch != out_ch else nn.Identity()
         self.ca = ChannelAttention(out_ch)
         self.act = nn.LeakyReLU(0.1, inplace=True)
 
