@@ -87,9 +87,8 @@ def evaluate(checkpoint_path, data_dir, device=None, batch_size=1, is_val=True):
 
             output = model(degraded)
 
-            # Upsample 128x128 -> 256x256 to match GT if needed
-            if output.shape != gt.shape:
-                output = torch.nn.functional.interpolate(output, size=gt.shape[2:], mode='bilinear', align_corners=False)
+            # The model naturally outputs the 2x upscaled image via PixelShuffle.
+            # No manual bilinear interpolation needed here anymore.
 
             if device.type == "cuda":
                 torch.cuda.synchronize()

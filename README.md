@@ -128,5 +128,4 @@ This computes PSNR, SSIM, LPIPS metrics and inference speed.
 ## Team
 
 - **Ketan Shinde** — 
-- **Rikhil Vaswani** — 
 - **Aditya Jagtap** — 
