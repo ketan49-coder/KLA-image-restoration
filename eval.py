@@ -29,7 +29,7 @@ except ImportError:
     print("[WARNING] lpips package not installed. Run: pip install lpips")
     print("          LPIPS scores will be skipped.")
 
-from model import UNet, SymUNet, get_model
+from model import SymUNet, get_model
 from dataset import ImageRestorationDataset
 
 
@@ -47,7 +47,7 @@ def compute_metrics(pred, gt):
     return psnr_val, ssim_val
 
 
-def evaluate(checkpoint_path, data_dir, device=None, batch_size=1, is_val=True, model_type="unet", base_channels=64):
+def evaluate(checkpoint_path, data_dir, device=None, batch_size=1, is_val=True, model_type="symunet", base_channels=64):
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
@@ -141,7 +141,7 @@ if __name__ == "__main__":
     parser.add_argument("--data_dir", type=str, default="train/train", help="Path to dataset root (containing GT/NoisyLR)")
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument("--device", type=str, default=None)
-    parser.add_argument("--model", type=str, default="unet", choices=["unet", "symunet"], help="Model architecture (unet / symunet)")
+    parser.add_argument("--model", type=str, default="symunet", choices=["symunet"], help="Model architecture (defaults to symunet)")
     parser.add_argument("--base_channels", type=int, default=64, help="Base channel count (default: 64)")
     args = parser.parse_args()
 

@@ -9,7 +9,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR
 
-from model import UNet, SymUNet, get_model
+from model import SymUNet, get_model
 from dataset import ImageRestorationDataset
 from losses import get_loss_function
 from metrics import RestorationMetrics
@@ -382,8 +382,8 @@ if __name__ == '__main__':
     parser.add_argument("--num_workers", type=int, default=2)
     parser.add_argument("--no_preload_ram", action="store_true", help="Disable RAM dataset preloading")
     parser.add_argument("--save_all_epochs", action="store_true", help="Save separate .pth for every single epoch")
-    parser.add_argument("--base_channels", type=int, default=64, help="Base channel count for UNet (use 32 or 16 for efficiency sweep)")
-    parser.add_argument("--model", type=str, default="unet", choices=["unet", "symunet"], help="Model architecture (unet / symunet)")
+    parser.add_argument("--base_channels", type=int, default=64, help="Base channel count for SymUNet (use 32 or 16 for efficiency sweep)")
+    parser.add_argument("--model", type=str, default="symunet", choices=["symunet"], help="Model architecture (defaults to symunet)")
     args = parser.parse_args()
 
     train(

@@ -3,7 +3,7 @@ import argparse
 import glob
 import numpy as np
 import torch
-from model import UNet, SymUNet, get_model
+from model import SymUNet, get_model
 
 def normalize_image(img_tensor):
     """
@@ -22,7 +22,7 @@ def normalize_image(img_tensor):
 def denormalize_image(norm_tensor, min_val, max_val):
     return (norm_tensor * (max_val - min_val + 1e-8)) + min_val
 
-def run_inference(input_dir, output_dir, checkpoint_path, device=None, model_type="unet", base_channels=64):
+def run_inference(input_dir, output_dir, checkpoint_path, device=None, model_type="symunet", base_channels=64):
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
@@ -77,7 +77,7 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", type=str, required=True, help="Path to save restored .npy outputs")
     parser.add_argument("--checkpoint", type=str, required=True, help="Path to trained .pth model checkpoint")
     parser.add_argument("--device", type=str, default=None, help="Device to use (cuda/cpu)")
-    parser.add_argument("--model", type=str, default="unet", choices=["unet", "symunet"], help="Model architecture (unet / symunet)")
+    parser.add_argument("--model", type=str, default="symunet", choices=["symunet"], help="Model architecture (defaults to symunet)")
     parser.add_argument("--base_channels", type=int, default=64, help="Base channel count (default: 64)")
     
     args = parser.parse_args()
