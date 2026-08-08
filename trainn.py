@@ -9,7 +9,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR
 
-from model import UNet
+from model import UNet, SymUNet, get_model
 from dataset import ImageRestorationDataset
 from losses import get_loss_function
 from metrics import RestorationMetrics
@@ -187,14 +187,15 @@ def train(
     save_all_epochs=False,
     alpha_zhao=0.85,
     w_gfl=0.10,
-    base_channels=64
+    base_channels=64,
+    model_type="unet"
 ):
     # Set seed
     set_seed(seed)
 
     # Device configuration
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    print(f"🚀 Device: {device} | Stage: {stage} (Run #{run_number}) | Loss: {loss_type.upper()}")
+    print(f"🚀 Device: {device} | Stage: {stage} (Run #{run_number}) | Model: {model_type.upper()} | Loss: {loss_type.upper()}")
 
     # Fail-fast Drive check
     if use_drive:
@@ -228,8 +229,8 @@ def train(
     train_loader = DataLoader(train_dataset, shuffle=True, **loader_kwargs)
     val_loader = DataLoader(val_dataset, shuffle=False, **loader_kwargs)
 
-    # 2. Model Setup
-    model = UNet(in_channels=1, out_channels=1, base_channels=base_channels).to(device)
+    # 2. Model Setup via Factory
+    model = get_model(model_type, in_channels=1, out_channels=1, base_channels=base_channels).to(device)
 
     # 3. Metric Evaluator
     metric_evaluator = RestorationMetrics(device=device, compute_lpips=True)
@@ -381,6 +382,7 @@ if __name__ == '__main__':
     parser.add_argument("--no_preload_ram", action="store_true", help="Disable RAM dataset preloading")
     parser.add_argument("--save_all_epochs", action="store_true", help="Save separate .pth for every single epoch")
     parser.add_argument("--base_channels", type=int, default=64, help="Base channel count for UNet (use 32 or 16 for efficiency sweep)")
+    parser.add_argument("--model", type=str, default="unet", choices=["unet", "symunet"], help="Model architecture (unet / symunet)")
     args = parser.parse_args()
 
     train(
@@ -400,5 +402,6 @@ if __name__ == '__main__':
         save_all_epochs=args.save_all_epochs,
         alpha_zhao=args.alpha_zhao,
         w_gfl=args.w_gfl,
-        base_channels=args.base_channels
+        base_channels=args.base_channels,
+        model_type=args.model
     )

@@ -3,7 +3,7 @@ import argparse
 import glob
 import numpy as np
 import torch
-from model import UNet
+from model import UNet, SymUNet, get_model
 
 def normalize_image(img_tensor):
     """
@@ -22,14 +22,14 @@ def normalize_image(img_tensor):
 def denormalize_image(norm_tensor, min_val, max_val):
     return (norm_tensor * (max_val - min_val + 1e-8)) + min_val
 
-def run_inference(input_dir, output_dir, checkpoint_path, device=None):
+def run_inference(input_dir, output_dir, checkpoint_path, device=None, model_type="unet", base_channels=64):
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
-    print(f"[INFO] Using device: {device}")
+    print(f"[INFO] Using device: {device} | Model: {model_type.upper()}")
 
-    # Load model
-    model = UNet(in_channels=1, out_channels=1).to(device)
+    # Load model via Factory
+    model = get_model(model_type, in_channels=1, out_channels=1, base_channels=base_channels).to(device)
     checkpoint = torch.load(checkpoint_path, map_location=device)
     state_dict = checkpoint.get("model_state_dict", checkpoint) if isinstance(checkpoint, dict) else checkpoint
     model.load_state_dict(state_dict)
@@ -77,7 +77,9 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", type=str, required=True, help="Path to save restored .npy outputs")
     parser.add_argument("--checkpoint", type=str, required=True, help="Path to trained .pth model checkpoint")
     parser.add_argument("--device", type=str, default=None, help="Device to use (cuda/cpu)")
+    parser.add_argument("--model", type=str, default="unet", choices=["unet", "symunet"], help="Model architecture (unet / symunet)")
+    parser.add_argument("--base_channels", type=int, default=64, help="Base channel count (default: 64)")
     
     args = parser.parse_args()
     
-    run_inference(args.input_dir, args.output_dir, args.checkpoint, device=args.device)
+    run_inference(args.input_dir, args.output_dir, args.checkpoint, device=args.device, model_type=args.model, base_channels=args.base_channels)

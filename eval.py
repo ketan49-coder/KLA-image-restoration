@@ -29,7 +29,7 @@ except ImportError:
     print("[WARNING] lpips package not installed. Run: pip install lpips")
     print("          LPIPS scores will be skipped.")
 
-from model import UNet
+from model import UNet, SymUNet, get_model
 from dataset import ImageRestorationDataset
 
 
@@ -47,14 +47,14 @@ def compute_metrics(pred, gt):
     return psnr_val, ssim_val
 
 
-def evaluate(checkpoint_path, data_dir, device=None, batch_size=1, is_val=True):
+def evaluate(checkpoint_path, data_dir, device=None, batch_size=1, is_val=True, model_type="unet", base_channels=64):
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
-    print(f"[INFO] Using device: {device}")
+    print(f"[INFO] Using device: {device} | Model: {model_type.upper()}")
 
     # ---- 1. Load model ----
-    model = UNet(in_channels=1, out_channels=1).to(device)
+    model = get_model(model_type, in_channels=1, out_channels=1, base_channels=base_channels).to(device)
     checkpoint = torch.load(checkpoint_path, map_location=device)
     state_dict = checkpoint.get("model_state_dict", checkpoint) if isinstance(checkpoint, dict) else checkpoint
     model.load_state_dict(state_dict)
@@ -141,6 +141,15 @@ if __name__ == "__main__":
     parser.add_argument("--data_dir", type=str, default="train/train", help="Path to dataset root (containing GT/NoisyLR)")
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument("--device", type=str, default=None)
+    parser.add_argument("--model", type=str, default="unet", choices=["unet", "symunet"], help="Model architecture (unet / symunet)")
+    parser.add_argument("--base_channels", type=int, default=64, help="Base channel count (default: 64)")
     args = parser.parse_args()
 
-    evaluate(args.checkpoint, args.data_dir, device=args.device, batch_size=args.batch_size)
+    evaluate(
+        args.checkpoint,
+        args.data_dir,
+        device=args.device,
+        batch_size=args.batch_size,
+        model_type=args.model,
+        base_channels=args.base_channels
+    )

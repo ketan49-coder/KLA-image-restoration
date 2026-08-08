@@ -106,4 +106,4 @@ class ImageRestorationDataset(Dataset):
         return noisy, gt
 
 # Alias for backwards compatibility
-RestorationDataset = ImageRestorationDataset
+RestorationDataset = ImageRestorationDataset

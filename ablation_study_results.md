@@ -66,16 +66,42 @@ Mean Validation Loss              0.0785                     0.0724
 
 ## Analytical Findings
 
-1. **Optimal Mathematical Formulation:**
-   The empirical optimum across both spatial fidelity and frequency-domain preservation was achieved by:
-   $$\mathcal{L}_{\text{final}} = (1 - w_{\text{GFL}}) \cdot \left[ \alpha \cdot \mathcal{L}_{\text{MS-SSIM}} + (1 - \alpha) \cdot \mathcal{L}_{G\text{-}L1} \right] + w_{\text{GFL}} \cdot \mathcal{L}_{\text{GFL}}$$
-   where $\alpha = 0.90$ and $w_{\text{GFL}} = 0.10$.
+### 1. Mathematical Formulation & Synergistic Mechanics
+The optimal loss formulation across all spatial fidelity, structural similarity, and perceptual metrics is defined as:
+$$\mathcal{L}_{\text{final}} = (1 - w_{\text{GFL}}) \cdot \left[ \alpha \cdot \mathcal{L}_{\text{MS-SSIM}} + (1 - \alpha) \cdot \mathcal{L}_{G\text{-}L1} \right] + w_{\text{GFL}} \cdot \mathcal{L}_{\text{GFL}}$$
+where $\alpha = 0.90$ and $w_{\text{GFL}} = 0.10$.
 
-2. **Structural Scale Weighting:**
-   Increasing the Multi-Scale SSIM weight from paper defaults ($\alpha = 0.025$) to $\alpha = 0.90$ consistently improved high-frequency edge alignment in SEM circuit patterns, raising the mean SSIM from 0.6632 to 0.7002.
+- **Multi-Scale Structural Similarity ($\mathcal{L}_{\text{MS-SSIM}}$, $\alpha = 0.90$):**
+  Unlike single-scale SSIM, MS-SSIM decomposes the image over 5 dyadic downsampling scales ($M=5$). Semiconductor SEM images exhibit defects and circuit lines across variable spatial frequencies (from broad substrate backgrounds down to nanometer etch boundaries). Evaluating contrast-structure ($cs_j$) across all 5 scales while evaluating luminance ($l_M$) exclusively at the coarsest scale ensures scale-invariant edge reconstruction and prevents gradient vanishing in fine line geometries.
+  
+- **Gaussian-Weighted L1 Loss ($\mathcal{L}_{G\text{-}L1}$, $1 - \alpha = 0.10$):**
+  Standard pixel-wise L1 treats all pixels uniformly, making it vulnerable to high-frequency electron detector shot noise. By convolving the absolute residual $|pred - target|$ with an 11×11 Gaussian kernel ($\sigma=1.5$), the network is anchored to the local median intensity of clean silicon regions while remaining robust against isolated stochastic noise spikes.
 
-3. **Spectral Regularization:**
-   Incorporating a 10% orthonormal 2D Fast Fourier Transform magnitude penalty ($\mathcal{L}_{\text{GFL}}$) provided high-frequency harmonic guidance that reduced the average LPIPS score from 0.3530 to 0.3450, corresponding to sharper transition boundaries on etched structures.
+- **Orthonormal Guided Frequency Loss ($\mathcal{L}_{\text{GFL}}$, $w_{\text{GFL}} = 0.10$):**
+  Spatial losses inherently exhibit low-pass filtering characteristics, leading to oversmoothed, blurry line edges. By computing the 2D Real Fast Fourier Transform ($\text{rfft2}$) with unitary orthonormal scaling, $\mathcal{L}_{\text{GFL}}$ penalizes spectral energy attenuation in the high-frequency Fourier quadrant, driving the mean LPIPS perceptual error down to 0.3450 (and peak to 0.3279).
+
+---
+
+### 2. Comparative Analysis Across Ablation Categories
+
+#### A. Spatial Baselines ($L_1$, $L_2$, Baseline)
+- **Observations:** Pure $L_1$ and $L_2$ achieved moderate PSNR (22.54–22.89 dB) but suffered from poor structural fidelity (SSIM $\le 0.6807$) and pronounced perceptual blur (LPIPS $\ge 0.3561$).
+- **Mechanism:** $L_2$ minimizes Mean Squared Error by predicting the conditional mean of all possible clean states, causing severe smoothing across sharp etched line boundaries.
+
+#### B. The Structural Ratio Progression ($\alpha = 0.025 \rightarrow 0.15 \rightarrow 0.50 \rightarrow 0.85 \rightarrow 0.90$)
+- **Observations:** The Zhao et al. paper default ($\alpha = 0.025$) underperformed in SEM restoration (SSIM 0.6814), as 97.5% $L_1$ dominance over-smoothed nanometer edges.
+- **Scaling Trend:** Progressively increasing $\alpha$ from 0.025 to 0.90 yielded a monotonic increase in both mean and peak SSIM ($0.6814 \rightarrow 0.6936 \rightarrow 0.7013 \rightarrow 0.7071 \rightarrow 0.7109$).
+- **Conclusion:** Semiconductor SEM structures require an ultra-structure-dominant loss regime ($\alpha \ge 0.85$) to force precise boundary alignment.
+
+#### C. Spectral Regularization vs. Spatial Coordinate Anchoring (Pure GFL vs. Compound)
+- **Observations:** Pure GFL (Run 10) failed to converge effectively (Mean PSNR 20.56 dB, SSIM 0.5389), whereas Compound-90 (Run 12) achieved the project benchmark record.
+- **Physical Reason:** Fourier magnitude spectra are translation and shift-invariant. A network trained exclusively on frequency magnitude lacks coordinate-space spatial localization, resulting in structural phase drift. When coupled with the 90% MS-SSIM spatial anchor, GFL acts as a precise spectral regularizer without disturbing spatial alignment.
+
+---
+
+### 3. Key Conclusions & Downstream Model Design
+1. **Loss Selection:** Compound-90 is established as the permanent loss criterion for all downstream stages.
+2. **Architectural Synergies:** The combination of multi-scale spatial loss with Fourier spectral loss creates an ideal training signal for architectures with global/local residual paths (e.g., SymUNet, ResUNet, Attention UNet), allowing the network to focus purely on learning the residual high-frequency noise map $\mathcal{R}(x) = y - x$.
 
 ---
 
