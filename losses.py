@@ -156,14 +156,15 @@ class GuidedFrequencyLoss(nn.Module):
     """
     Guided Frequency Loss (GFL) via 2D Real FFT:
     Penalizes spectral attenuation and forces high-frequency edge restoration.
+    Uses orthonormal FFT normalization to ensure stable numerical scale (~0.05-0.2).
     """
     def __init__(self, alpha=0.2):
         super(GuidedFrequencyLoss, self).__init__()
         self.alpha = alpha
 
     def forward(self, pred, target):
-        pred_fft = torch.fft.rfft2(pred)
-        target_fft = torch.fft.rfft2(target)
+        pred_fft = torch.fft.rfft2(pred, norm="ortho")
+        target_fft = torch.fft.rfft2(target, norm="ortho")
 
         pred_mag = torch.abs(pred_fft)
         target_mag = torch.abs(target_fft)
@@ -179,11 +180,11 @@ class GuidedFrequencyLoss(nn.Module):
 # ====================================================================
 class CompoundRestorationLoss(nn.Module):
     """
-    Compound Loss combining:
-      - Zhao et al. Mix Loss (L1 + MS-SSIM)
-      - Guided Frequency Loss (2D FFT)
+    Flagship Compound Loss combining:
+      - Winning Structure-Dominant Zhao Mix (85% MS-SSIM + 15% Gaussian-L1)
+      - Guided Frequency Loss (2D FFT via orthonormal spectral regularizer)
     """
-    def __init__(self, alpha_zhao=0.15, w_gfl=0.15):
+    def __init__(self, alpha_zhao=0.85, w_gfl=0.10):
         super(CompoundRestorationLoss, self).__init__()
         self.w_gfl = w_gfl
         self.zhao_mix = ZhaoMixLoss(alpha=alpha_zhao)
@@ -265,8 +266,8 @@ def get_loss_function(name="baseline"):
     elif name == "gfl":
         return GuidedFrequencyLoss(alpha=0.2)
     elif name in ["compound", "l1_msssim_gfl", "all", "l1+msssim+gfl"]:
-        # Full compound: Zhao Mix + Guided Frequency Loss
-        return CompoundRestorationLoss(alpha_zhao=0.15, w_gfl=0.15)
+        # Full compound: Winning 85% Structure-Dominant Zhao Mix + 10% Orthonormal GFL
+        return CompoundRestorationLoss(alpha_zhao=0.85, w_gfl=0.10)
     elif name == "baseline":
         return CombinedLoss()
     else:
