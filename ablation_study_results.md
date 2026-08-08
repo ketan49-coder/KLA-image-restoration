@@ -11,14 +11,37 @@ We identified the two fundamental architectural bottlenecks causing this plateau
 ### 🧪 Stage 4 Benchmark Execution Roadmap:
 | Run ID | Strategy / Architecture | Loss Formulation | Epochs | Peak Val PSNR (dB) | Peak Val SSIM | Peak Val LPIPS (↓) | Status | Notes |
 | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
-| **Run 13** | **SymUNet** | **Charbonnier** | 15 | **26.9754 dB** ⭐ | **0.7224** | **0.2954** | 🟢 **COMPLETED** | Sets new all-time PSNR record; confirms 4x downsampling bottleneck |
+| **Run 13** | **SymUNet** | **Charbonnier** | 15 | **26.9754 dB** | **0.7224** | **0.2954** | 🟢 **COMPLETED** | Verified raw Charbonnier gradient behavior |
+| **Run 13_Hybrid** | **SymUNet** | **Charb-Compound** | 15 | **27.1093 dB** 🚀 | **0.7276** 🚀 | **0.2816** 🚀 | 🟢 **COMPLETED** | **BROKE 27 dB BARRIER!** Tri-Fidelity loss wins across all metrics |
 | **Run 14** | **ResRestorer** (Full-Res ResNet) | **Charb-Compound** | 15 | $\ge 28.5\text{ dB}$ | $\ge 0.74$ | $\le 0.28$ | 🟡 Pending | Eliminates all 4x downsampling; full $128 \times 128$ feature flow |
 | **Run 15** | **ShallowUNet** (2-Stage Multi-Scale)| **Charb-Compound** | 15 | $\ge 28.0\text{ dB}$ | $\ge 0.73$ | $\le 0.28$ | 🟡 Pending | 1 downsampling level only + Dense Residual Blocks |
 | **Run 16** | **Grand Winner + Hybrid Loss** | **Optimal Formulation**| 25 | $\ge 30.0\text{ dB}$ | $\ge 0.76$ | $\le 0.25$ | 🟡 Pending | Final hackathon flagship submission |
 
 ---
 
-### 📊 Run 13: SymUNet + Charbonnier Loss (15-Epoch Full Progression)
+### 📊 Run 13_Hybrid: SymUNet + Tri-Fidelity Charb-Compound Loss (15-Epoch Progression)
+
+| Epoch | Train Loss | Val Loss | Val PSNR (dB) | Val SSIM | Val LPIPS (↓) | Learning Rate | Checkpoint Status |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **1** | 0.2662 | 2.6108 | 20.8790 | 0.5790 | 0.3997 | 0.001000 | 🌟 New Best |
+| **2** | 0.0756 | 0.2749 | 24.6783 | 0.6483 | 0.3517 | 0.001000 | 🌟 New Best |
+| **3** | 0.0733 | 0.1346 | 22.4034 | 0.6033 | 0.3851 | 0.001000 | |
+| **4** | 0.0657 | 0.0611 | 25.4139 | 0.6765 | 0.3346 | 0.001000 | 🌟 New Best |
+| **5** | 0.0582 | 0.0671 | 24.6382 | 0.6664 | 0.3285 | 0.001000 | |
+| **6** | 0.0561 | 0.0548 | 26.4310 | 0.7106 | 0.3084 | 0.001000 | 🌟 New Best |
+| **7** | 0.0536 | 0.0557 | 26.4786 | 0.6983 | 0.3184 | 0.001000 | 🌟 New Best |
+| **8** | 0.0522 | 0.0530 | 26.6406 | 0.7109 | 0.2959 | 0.001000 | 🌟 New Best |
+| **9** | 0.0517 | 0.0593 | 26.2761 | 0.6943 | 0.3360 | 0.001000 | |
+| **10** | 0.0502 | 0.0512 | 26.8550 | 0.7183 | 0.2933 | 0.001000 | 🌟 New Best |
+| **11** | 0.0499 | 0.0584 | 26.2164 | 0.7040 | 0.3118 | 0.001000 | |
+| **12** | 0.0497 | 0.0531 | 26.8730 | 0.7160 | 0.3068 | 0.001000 | 🌟 New Best |
+| **13** | 0.0493 | 0.0548 | 26.3501 | 0.7112 | 0.3022 | 0.001000 | |
+| **14** | **0.0486** | **0.0489** | **27.1093** | **0.7276** | **0.2816** | 0.001000 | 🚀 **NEW ALL-TIME RECORD (>27 dB!)** |
+| **15** | 0.0484 | 0.0538 | 26.6650 | 0.7054 | 0.3069 | 0.001000 | |
+
+---
+
+### 📊 Run 13: SymUNet + Pure Charbonnier Loss (15-Epoch Full Progression)
 
 | Epoch | Train Loss | Val Loss | Val PSNR (dB) | Val SSIM | Val LPIPS (↓) | Learning Rate | Checkpoint Status |
 | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
@@ -33,12 +56,10 @@ We identified the two fundamental architectural bottlenecks causing this plateau
 | **9** | 0.0356 | 0.0389 | 26.2511 | 0.7000 | 0.2965 | 0.001000 | |
 | **10** | 0.0352 | 0.0386 | 26.4121 | 0.7029 | 0.3253 | 0.001000 | |
 | **11** | 0.0344 | 0.0370 | 26.9178 | 0.7139 | 0.3229 | 0.001000 | 🌟 New Best |
-| **12** | **0.0339** | **0.0368** | **26.9754** | **0.7152** | **0.3326** | 0.001000 | 🌟 **NEW ALL-TIME BEST PSNR** |
+| **12** | **0.0339** | **0.0368** | **26.9754** | **0.7152** | **0.3326** | 0.001000 | 🌟 Best PSNR (Run 13) |
 | **13** | 0.0354 | 0.0369 | 26.7348 | 0.7174 | 0.3166 | 0.001000 | |
 | **14** | 0.0339 | 0.0372 | 26.9184 | 0.7184 | 0.3036 | 0.001000 | |
-| **15** | **0.0336** | **0.0375** | **26.7249** | **0.7224** | **0.2954** | 0.001000 | 🌟 **Peak SSIM & LPIPS** |
-
-> **Key Discovery from Run 13:** Charbonnier Loss pushed PSNR to a new record of **26.9754 dB**, but the architecture hit a hard theoretical wall right at ~26.97 dB. This conclusively proves that the loss is no longer the bottleneck — the bottleneck is the **4-stage downsampling ($128 \rightarrow 8 \times 8$)** destroying sub-pixel semiconductor line information!
+| **15** | **0.0336** | **0.0375** | **26.7249** | **0.7224** | **0.2954** | 0.001000 | 🌟 Peak SSIM & LPIPS (Run 13) |
 
 ---
 
@@ -48,12 +69,13 @@ We identified the two fundamental architectural bottlenecks causing this plateau
 | Baseline U-Net | L1 + 0.1×MSE | 5 | 22.56 dB | 0.6505 | 0.3770 | `checkpoints/baseline.pth` |
 | Enhanced U-Net | Compound-90 | 9 | 23.47 dB | 0.7109 | 0.3279 | `checkpoints/run12_compound90.pth` |
 | SymUNet (Run 1) | Compound-90 | 15 | 26.9443 dB | 0.7243 | 0.2899 | `checkpoints/stage_2_compound_run1_best.pth` |
-| **SymUNet (Run 13)** | **Charbonnier** | **15** | **26.9754 dB** ⭐ | **0.7224** | **0.2954** | `checkpoints/stage_4_charbonnier_run13_best.pth` |
+| SymUNet (Run 13) | Charbonnier | 15 | 26.9754 dB | 0.7224 | 0.2954 | `checkpoints/stage_4_charbonnier_run13_best.pth` |
+| **SymUNet (Run 13_Hybrid)**| **Charb-Compound** | **15** | **27.1093 dB** 🏆 | **0.7276** 🏆 | **0.2816** 🏆 | `checkpoints/stage_4_charb_compound_run13_hybrid_best.pth` |
 
 **Net Improvement over Baseline:**
-- **+4.38 dB PSNR** improvement (from 22.56 dB $\rightarrow$ **26.94 dB**)
-- **+0.0738 SSIM** improvement (from 0.6505 $\rightarrow$ **0.7243**)
-- **-0.0871 LPIPS** perceptual error reduction (from 0.3770 $\rightarrow$ **0.2899**, breaking the sub-0.30 barrier!)
+- **+4.55 dB PSNR** improvement (from 22.56 dB $\rightarrow$ **27.11 dB**)
+- **+0.0771 SSIM** improvement (from 0.6505 $\rightarrow$ **0.7276**)
+- **-0.0954 LPIPS** perceptual error reduction (from 0.3770 $\rightarrow$ **0.2816**, new benchmark record!)
 
 ---
 
