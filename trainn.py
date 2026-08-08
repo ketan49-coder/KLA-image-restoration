@@ -376,7 +376,7 @@ if __name__ == '__main__':
     parser.add_argument("--batch_size", type=int, default=8)
     parser.add_argument("--lr", type=float, default=0.001)
     parser.add_argument("--stage", type=str, default="stage_2")
-    parser.add_argument("--run_number", type=int, default=1)
+    parser.add_argument("--run_number", type=str, default="1", help="Run identifier (e.g. 13, 13_hybrid, 14)")
     parser.add_argument("--data_dir", type=str, default=DEFAULT_DATA_DIR)
     parser.add_argument("--use_drive", action="store_true", help="Backup checkpoints to Google Drive")
     parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint .pth to resume from")
