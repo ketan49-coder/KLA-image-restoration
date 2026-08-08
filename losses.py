@@ -200,16 +200,46 @@ class CharbonnierLoss(nn.Module):
 
 
 # ====================================================================
-# 5. LOSS FACTORY
+# 5. CHARBONNIER-COMPOUND HYBRID LOSS (Tri-Fidelity Optimizer)
 # ====================================================================
-def get_loss_function(name="compound", alpha=0.90, w_gfl=0.10, alpha_zhao=None, **kwargs):
+class CharbonnierCompoundLoss(nn.Module):
+    """
+    Tri-Fidelity Compound Restoration Loss:
+        Loss = w_charb * Charbonnier + w_msssim * MS-SSIM + w_gfl * GFL
+    Provides optimal synergy:
+        - High PSNR (driven by Charbonnier)
+        - High SSIM (driven by 5-scale MS-SSIM)
+        - Low LPIPS / Perceptual Sharpness (driven by Orthonormal 2D FFT GFL)
+    """
+    def __init__(self, w_charb=0.50, w_msssim=0.40, w_gfl=0.10, eps=1e-3):
+        super(CharbonnierCompoundLoss, self).__init__()
+        self.w_charb = w_charb
+        self.w_msssim = w_msssim
+        self.w_gfl = w_gfl
+        self.charbonnier = CharbonnierLoss(eps=eps)
+        self.ms_ssim = ExactMSSSIMLoss()
+        self.gfl = GuidedFrequencyLoss()
+
+    def forward(self, pred, target):
+        loss_c = self.charbonnier(pred, target)
+        loss_s = self.ms_ssim(pred, target)
+        loss_g = self.gfl(pred, target)
+        return (self.w_charb * loss_c) + (self.w_msssim * loss_s) + (self.w_gfl * loss_g)
+
+
+# ====================================================================
+# 6. LOSS FACTORY
+# ====================================================================
+def get_loss_function(name="charb_compound", alpha=0.90, w_gfl=0.10, alpha_zhao=None, w_charb=0.50, w_msssim=0.40, **kwargs):
     """
     Factory to retrieve loss functions cleanly for ablation experiments.
     """
     if alpha_zhao is not None:
         alpha = alpha_zhao
-    name = (name or "compound").lower()
-    if name in ["charbonnier", "charb", "psnr_loss"]:
+    name = (name or "charb_compound").lower()
+    if name in ["charb_compound", "charbonnier_compound", "tri_compound", "hybrid"]:
+        return CharbonnierCompoundLoss(w_charb=w_charb, w_msssim=w_msssim, w_gfl=w_gfl)
+    elif name in ["charbonnier", "charb", "psnr_loss"]:
         return CharbonnierLoss(eps=1e-3)
     elif name in ["compound", "compound_90", "optimal", "default"]:
         return CompoundRestorationLoss(alpha=alpha, w_gfl=w_gfl)
@@ -230,4 +260,5 @@ def get_loss_function(name="compound", alpha=0.90, w_gfl=0.10, alpha_zhao=None, 
                 return self.l1(pred, target) + 0.1 * self.mse(pred, target)
         return BaselineLoss()
     else:
-        return CompoundRestorationLoss(alpha=alpha, w_gfl=w_gfl)
+        return CharbonnierCompoundLoss(w_charb=w_charb, w_msssim=w_msssim, w_gfl=w_gfl)
+

@@ -187,6 +187,8 @@ def train(
     save_all_epochs=False,
     alpha_zhao=0.85,
     w_gfl=0.10,
+    w_charb=0.50,
+    w_msssim=0.40,
     base_channels=64,
     model_type="unet"
 ):
@@ -236,7 +238,13 @@ def train(
     metric_evaluator = RestorationMetrics(device=device, compute_lpips=True)
 
     # 4. Loss Function via Factory
-    criterion = get_loss_function(loss_type, alpha_zhao=alpha_zhao, w_gfl=w_gfl).to(device)
+    criterion = get_loss_function(
+        loss_type, 
+        alpha_zhao=alpha_zhao, 
+        w_gfl=w_gfl,
+        w_charb=w_charb,
+        w_msssim=w_msssim
+    ).to(device)
 
     # 5. Optimizer & Scheduler
     optimizer = optim.Adam(model.parameters(), lr=lr)
@@ -373,9 +381,11 @@ if __name__ == '__main__':
     parser.add_argument("--use_drive", action="store_true", help="Backup checkpoints to Google Drive")
     parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint .pth to resume from")
     parser.add_argument("--scheduler", type=str, default="plateau", choices=["plateau", "cosine", "none"])
-    parser.add_argument("--loss", type=str, default="charbonnier",
-                        choices=["charbonnier", "compound", "l1", "mse", "msssim", "baseline"],
-                        help="Loss function (charbonnier / compound / l1 / mse / msssim / baseline)")
+    parser.add_argument("--loss", type=str, default="charb_compound",
+                        choices=["charb_compound", "charbonnier", "compound", "l1", "mse", "msssim", "baseline"],
+                        help="Loss function (charb_compound / charbonnier / compound / l1 / mse / msssim / baseline)")
+    parser.add_argument("--w_charb", type=float, default=0.50, help="Weight for Charbonnier loss in charb_compound (default 0.50)")
+    parser.add_argument("--w_msssim", type=float, default=0.40, help="Weight for MS-SSIM loss in charb_compound (default 0.40)")
     parser.add_argument("--alpha_zhao", type=float, default=0.90, help="MS-SSIM ratio in Zhao mix (default 0.90)")
     parser.add_argument("--w_gfl", type=float, default=0.10, help="Weight for GFL frequency loss (default 0.10)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
@@ -403,6 +413,8 @@ if __name__ == '__main__':
         save_all_epochs=args.save_all_epochs,
         alpha_zhao=args.alpha_zhao,
         w_gfl=args.w_gfl,
+        w_charb=args.w_charb,
+        w_msssim=args.w_msssim,
         base_channels=args.base_channels,
         model_type=args.model
     )
