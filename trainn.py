@@ -361,7 +361,7 @@ def train(
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Modular Ablation Training Script for KLA Restoration")
-    parser.add_argument("--epochs", type=int, default=5, help="Number of epochs to train")
+    parser.add_argument("--epochs", type=int, default=7, help="Number of epochs to train")
     parser.add_argument("--batch_size", type=int, default=8)
     parser.add_argument("--lr", type=float, default=0.001)
     parser.add_argument("--stage", type=str, default="stage_2")
@@ -371,7 +371,7 @@ if __name__ == '__main__':
     parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint .pth to resume from")
     parser.add_argument("--scheduler", type=str, default="plateau", choices=["plateau", "cosine", "none"])
     parser.add_argument("--loss", type=str, default="l1",
-                        choices=["l1", "l2", "mse", "g_l1", "ssim", "msssim", "zhao_paper", "zhao_sem", "l1_msssim", "gfl", "compound", "baseline"],
+                        choices=["l1", "l2", "mse", "g_l1", "ssim", "msssim", "l1_ssim", "zhao_paper", "zhao_sem", "l1_msssim", "gfl", "l1_msssim_gfl", "compound", "baseline", "all"],
                         help="Loss function to evaluate in ablation experiment")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     parser.add_argument("--num_workers", type=int, default=2)
