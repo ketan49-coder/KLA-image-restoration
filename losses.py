@@ -180,16 +180,38 @@ class CompoundRestorationLoss(nn.Module):
 
 
 # ====================================================================
+# 4. CHARBONNIER LOSS (Direct PSNR Optimizer)
+# ====================================================================
+class CharbonnierLoss(nn.Module):
+    """
+    Charbonnier Loss (differentiable smooth L1 variant):
+        L(x, y) = sqrt((x - y)^2 + eps^2)
+    Standard loss in NAFNet, Restormer, and modern Super-Resolution
+    benchmarks for direct mathematical PSNR optimization.
+    """
+    def __init__(self, eps=1e-3):
+        super(CharbonnierLoss, self).__init__()
+        self.eps = eps
+
+    def forward(self, pred, target):
+        diff = pred - target
+        loss = torch.mean(torch.sqrt((diff * diff) + (self.eps * self.eps)))
+        return loss
+
+
+# ====================================================================
 # 5. LOSS FACTORY
 # ====================================================================
-def get_loss_function(name="compound", alpha=0.90, alpha_zhao=None, w_gfl=0.10, **kwargs):
+def get_loss_function(name="compound", alpha=0.90, w_gfl=0.10, alpha_zhao=None, **kwargs):
     """
-    Returns the loss function. Defaults to optimal CompoundRestorationLoss (Run 12).
+    Factory to retrieve loss functions cleanly for ablation experiments.
     """
     if alpha_zhao is not None:
         alpha = alpha_zhao
     name = (name or "compound").lower()
-    if name in ["compound", "compound_90", "optimal", "default"]:
+    if name in ["charbonnier", "charb", "psnr_loss"]:
+        return CharbonnierLoss(eps=1e-3)
+    elif name in ["compound", "compound_90", "optimal", "default"]:
         return CompoundRestorationLoss(alpha=alpha, w_gfl=w_gfl)
     elif name in ["l1", "mae"]:
         return nn.L1Loss()
@@ -209,4 +231,3 @@ def get_loss_function(name="compound", alpha=0.90, alpha_zhao=None, w_gfl=0.10, 
         return BaselineLoss()
     else:
         return CompoundRestorationLoss(alpha=alpha, w_gfl=w_gfl)
-
