@@ -1,15 +1,29 @@
 # KLA Image Restoration: Ablation & Architecture Study
 
-## 🚀 Stage 3: Flagship Architecture Breakthrough — SymUNet (LATEST BENCHMARK)
+## 🚀 Stage 4: Overcoming the 26.9 dB Plateau (3-Pillar Benchmark Campaign)
 
-**Massive Breakthrough:** Our new **SymUNet** architecture (Symmetric U-Net with Local Residual Blocks, Squeeze-and-Excitation Channel Attention, Attention Gates on Skip Connections, and Sub-Pixel ICNR Upscaling) trained with the **Compound-90 Loss** for 15 epochs has shattered all prior records!
+### 🎯 The Critical Diagnosis:
+While Stage 3 achieved a high mark of **26.9443 dB**, adding deep attention and residual complexity to a 4-level U-Net yielded only **+0.017 dB** over standard U-Net with GT Normalization (26.9272 dB). 
+We identified the two fundamental architectural bottlenecks causing this plateau:
+1. **The 4× Downsampling Penalty:** Squeezing $128 \times 128$ SEM inputs down to $8 \times 8$ bottlenecks destroys microscopic semiconductor nanometer line boundaries.
+2. **The MS-SSIM Metric Tradeoff:** `Compound-90` optimizes structural perceptual correlation rather than direct mathematical pixel error ($10\log_{10}(1/\text{MSE})$), which caps raw PSNR.
 
-### 🏆 Final Benchmark Scorecard:
+### 🧪 Stage 4 Benchmark Execution Roadmap:
+| Run ID | Strategy / Architecture | Loss Formulation | Target Epochs | Target PSNR | Status | Notes |
+| :--- | :--- | :--- | :---: | :---: | :---: | :--- |
+| **Run 13** | **SymUNet** (Current) | **Charbonnier Loss** | 15 | $\ge 27.5\text{ dB}$ | 🟡 Pending | Tests immediate PSNR lift by removing MS-SSIM suppression |
+| **Run 14** | **ResRestorer** (Full-Res Deep ResNet) | **Charbonnier Loss** | 15 | $\ge 28.5\text{ dB}$ | 🟡 Pending | Eliminates all 4x downsampling; preserves 100% fine line features |
+| **Run 15** | **ShallowUNet** (2-Stage Multi-Scale) | **Charbonnier Loss** | 15 | $\ge 28.0\text{ dB}$ | 🟡 Pending | 1 downsampling level only + Dense Residual Blocks |
+| **Run 16** | **Grand Winner + Hybrid Loss** | **Optimal Formulation**| 25 | $\ge 30.0\text{ dB}$ | 🟡 Pending | Final hackathon flagship submission |
+
+---
+
+## 🏆 Current Stage 3 Leaderboard Scorecard (Baseline to Date)
 | Model Architecture | Loss Function | Epochs | Peak Val PSNR (dB) | Peak Val SSIM | Peak Val LPIPS (↓) | Checkpoint Path |
 | :--- | :--- | :---: | :---: | :---: | :---: | :--- |
 | Baseline U-Net | L1 + 0.1×MSE | 5 | 22.56 dB | 0.6505 | 0.3770 | `checkpoints/baseline.pth` |
 | Enhanced U-Net | Compound-90 | 9 | 23.47 dB | 0.7109 | 0.3279 | `checkpoints/run12_compound90.pth` |
-| **SymUNet (Flagship)** | **Compound-90** | **15** | **26.9443 dB** ⭐ | **0.7243** ⭐ | **0.2899** ⭐ | `checkpoints/stage_2_compound_run1_best.pth` |
+| **SymUNet (Stage 3 Leader)**| **Compound-90** | **15** | **26.9443 dB** | **0.7243** | **0.2899** | `checkpoints/stage_2_compound_run1_best.pth` |
 
 **Net Improvement over Baseline:**
 - **+4.38 dB PSNR** improvement (from 22.56 dB $\rightarrow$ **26.94 dB**)
