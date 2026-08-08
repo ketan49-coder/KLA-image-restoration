@@ -1,27 +1,51 @@
 # KLA Image Restoration: Ablation & Architecture Study
 
-## 🚀 Stage 3: Core Pipeline V2 & Architecture Overhaul (LATEST UPDATE)
+## 🚀 Stage 3: Flagship Architecture Breakthrough — SymUNet (LATEST BENCHMARK)
 
-**Massive Breakthrough:** We have successfully broken through the 23.5 dB ceiling of the original Stage 1 baseline! The new `core1` architecture achieves a Peak Validation PSNR of **26.9272 dB**, a massive improvement of nearly ~4 dB, alongside significant improvements in SSIM (0.7175) and LPIPS (0.3029).
+**Massive Breakthrough:** Our new **SymUNet** architecture (Symmetric U-Net with Local Residual Blocks, Squeeze-and-Excitation Channel Attention, Attention Gates on Skip Connections, and Sub-Pixel ICNR Upscaling) trained with the **Compound-90 Loss** for 15 epochs has shattered all prior records!
 
-### What Changed in V2? (Context for the Team)
-Based on an unbiased review of our Stage 1/Stage 2 pipeline, we implemented three critical structural fixes that completely unlocked the network's potential:
+### 🏆 Final Benchmark Scorecard:
+| Model Architecture | Loss Function | Epochs | Peak Val PSNR (dB) | Peak Val SSIM | Peak Val LPIPS (↓) | Checkpoint Path |
+| :--- | :--- | :---: | :---: | :---: | :---: | :--- |
+| Baseline U-Net | L1 + 0.1×MSE | 5 | 22.56 dB | 0.6505 | 0.3770 | `checkpoints/baseline.pth` |
+| Enhanced U-Net | Compound-90 | 9 | 23.47 dB | 0.7109 | 0.3279 | `checkpoints/run12_compound90.pth` |
+| **SymUNet (Flagship)** | **Compound-90** | **15** | **26.9443 dB** ⭐ | **0.7243** ⭐ | **0.2899** ⭐ | `checkpoints/stage_2_compound_run1_best.pth` |
 
-1. **GT-Anchored Normalization (The Mathematical Fix):**
-   * *The Problem:* Previously, `dataset.py` normalized the noisy image and GT image independently to their own `[0, 1]` ranges. This destroyed the physical reality of speckle noise, which inherently exceeds the true signal bounds.
-   * *The Fix:* We now compute the `min_val` and `max_val` exclusively from the Ground Truth image and apply that exact same scaling transform to the noisy input. Noisy speckle spikes now correctly fall outside the `[0, 1]` range, giving the network the exact mathematical signal it needs to suppress them.
-   * *Inference:* We updated `inference.py` to use Robust Percentile Normalization (1st and 99th percentiles) so that a single bright speckle doesn't artificially dim the entire restored image during final testing without a GT anchor.
+**Net Improvement over Baseline:**
+- **+4.38 dB PSNR** improvement (from 22.56 dB $\rightarrow$ **26.94 dB**)
+- **+0.0738 SSIM** improvement (from 0.6505 $\rightarrow$ **0.7243**)
+- **-0.0871 LPIPS** perceptual error reduction (from 0.3770 $\rightarrow$ **0.2899**, breaking the sub-0.30 barrier!)
 
-2. **PixelShuffle + ICNR Initialization:**
-   * Replaced the blurry standard bilinear upsampling at the end of the U-Net with a learnable `PixelShuffle` layer to achieve true super-resolution and perfectly sharp edges. 
-   * We applied ICNR (Iterative Convolutional Nearest-Neighbor Resize) initialization to mathematically prevent the network from hallucinating checkerboard artifacts.
+---
 
-3. **Global Residual Connection:**
-   * *The Problem:* Pure PixelShuffle forces the network to learn both low-frequency colors and high-frequency edges from scratch, which caused our training loss to explode to 189 earlier.
-   * *The Fix:* We now mathematically stretch (bilinear interpolate) the original noisy image and use it as a "base canvas". The U-Net's `PixelShuffle` layer now only learns to predict the missing sharp edges (the "residual") and adds them on top of the canvas. This is the industry-standard approach (e.g., EDSR) and instantly stabilized training.
+### 📊 SymUNet 15-Epoch Training Progression:
 
-4. **The Efficiency Sweep Strategy (Hackathon Strategy):**
-   * We parameterized the `base_channels` across `model.py` and `trainn.py`. We can now easily train 32-channel and 16-channel variants of the model. This allows us to generate a highly competitive "Speed vs. Quality" tradeoff curve for the judges, maximizing our score on the efficiency criteria.
+| Epoch | Train Loss | Val Loss | Val PSNR (dB) | Val SSIM | Val LPIPS (↓) | Learning Rate | Checkpoint Status |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :--- |
+| **1** | 0.2350 | 0.2911 | 23.4687 | 0.6207 | 0.3723 | 0.001000 | 🌟 New Best |
+| **2** | 0.0953 | 0.1207 | 24.8494 | 0.6551 | 0.3485 | 0.001000 | 🌟 New Best |
+| **3** | 0.0856 | 0.0769 | 25.4207 | 0.6730 | 0.3245 | 0.001000 | 🌟 New Best |
+| **4** | 0.0781 | 0.0732 | 26.4029 | 0.7004 | 0.3153 | 0.001000 | 🌟 New Best |
+| **5** | 0.0737 | 0.0897 | 25.3013 | 0.6870 | 0.3356 | 0.001000 | |
+| **6** | 0.0721 | 0.0748 | 26.2455 | 0.7058 | 0.3237 | 0.001000 | |
+| **7** | 0.0708 | 0.0716 | 26.0807 | 0.7081 | 0.3141 | 0.001000 | |
+| **8** | 0.0675 | 0.0676 | 26.5382 | 0.7142 | 0.2974 | 0.000500 | 🌟 New Best (LR Cut) |
+| **9** | 0.0671 | 0.0681 | 26.6327 | 0.7155 | 0.3124 | 0.000500 | 🌟 New Best |
+| **10** | 0.0660 | 0.0662 | 26.7036 | 0.7209 | 0.3021 | 0.000500 | 🌟 New Best |
+| **11** | 0.0654 | 0.0698 | 26.6249 | 0.7096 | 0.3062 | 0.000500 | |
+| **12** | 0.0646 | 0.0801 | 26.3361 | 0.7054 | 0.3321 | 0.000500 | |
+| **13** | 0.0642 | 0.0652 | 26.8308 | 0.7206 | 0.3022 | 0.000500 | 🌟 New Best |
+| **14** | 0.0630 | 0.0649 | 26.8463 | 0.7241 | 0.2956 | 0.000500 | 🌟 New Best |
+| **15** | **0.0622** | **0.0647** | **26.9443** | **0.7243** | **0.2899** | 0.000500 | 🌟 **FINAL BEST (Peak Model)** |
+
+---
+
+### What Makes SymUNet So Effective?
+1. **Local Residual Blocks + BatchNorm:** Prevents gradient vanishing across deep feature hierarchies and stabilizes high-order gradient backpropagation.
+2. **Squeeze-and-Excitation (SE) Channel Attention:** Recalibrates channel-wise feature responses dynamically, giving higher weight to informative edge filters over flat background responses.
+3. **Attention Gates (AGs) on Skip Connections:** Explicitly gates low-level encoder features using high-level decoder gating signals, suppressing noise in skip connections before spatial concatenation.
+4. **Sub-Pixel Convolution (PixelShuffle with ICNR):** Eliminates checkerboard deconvolution artifacts and directly learns 2x spatial reconstruction kernels.
+5. **Compound-90 Loss Synergy:** Simultaneously optimizes structural integrity (MS-SSIM), local intensity consistency (Gaussian-L1), and high-frequency Fourier harmonics (GFL).
 
 ---
 
