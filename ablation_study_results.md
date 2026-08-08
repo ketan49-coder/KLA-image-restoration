@@ -1,21 +1,30 @@
 # KLA Image Restoration: Ablation & Architecture Study
 
-## 🚀 Stage 4: Overcoming the 26.9 dB Plateau (3-Pillar Benchmark Campaign)
+## 🏆 Current All-Time Champions (As of Stage 4)
+- **Best Model Architecture:** **`SymUNet`** (Symmetric Residual U-Net with Attention Gates & Channel Attention)
+- **Best Loss Function:** **`Charb-Compound`** (Tri-Fidelity: $0.50 \cdot \text{Charbonnier} + 0.40 \cdot \text{MS-SSIM} + 0.10 \cdot \text{GFL}$)
+- **Best Val PSNR:** **`27.1093 dB`** 🌟 *(New project record breaking the 27 dB barrier)*
+- **Best Val SSIM:** **`0.7276`** 🌟 *(New project record for structural fidelity)*
+- **Best Val LPIPS:** **`0.2816`** 🌟 *(New project record for perceptual realism)*
+- **Best Checkpoint:** `checkpoints/stage_4_charb_compound_run13_hybrid_best.pth`
 
-### 🎯 The Critical Diagnosis:
-While Stage 3 achieved a high mark of **26.9443 dB**, adding deep attention and residual complexity to a 4-level U-Net yielded only **+0.017 dB** over standard U-Net with GT Normalization (26.9272 dB). 
-We identified the two fundamental architectural bottlenecks causing this plateau:
-1. **The 4× Downsampling Penalty:** Squeezing $128 \times 128$ SEM inputs down to $8 \times 8$ bottlenecks destroys microscopic semiconductor nanometer line boundaries.
-2. **The MS-SSIM Metric Tradeoff:** `Compound-90` optimizes structural perceptual correlation rather than direct mathematical pixel error ($10\log_{10}(1/\text{MSE})$), which caps raw PSNR.
+---
+
+## 🚀 Stage 4: Overcoming the 26.9 dB Plateau & Loss Benchmark Campaign
+
+### 🎯 Key Empirical Discoveries:
+1. **The 27 dB Breakthrough (Run 13_Hybrid):** Combining Charbonnier (pixel fidelity), MS-SSIM (structural edges), and GFL (2D FFT frequency sharpness) broke the 27 dB barrier for the first time, reaching **27.1093 dB PSNR** and **0.7276 SSIM**.
+2. **Architecture Showdown (SymUNet vs. ResRestorer):**
+   - **`SymUNet` (Winner):** Encoder-decoder multi-scale pyramid + Attention Gates provides wide receptive field + fine edge routing at **~35-40 sec/epoch**.
+   - **`ResRestorer` (Eliminated):** 16 flat full-resolution residual blocks without downsampling was $4\times$ too slow (~2.5 min/epoch) and lacked multi-scale context.
 
 ### 🧪 Stage 4 Benchmark Execution Roadmap:
 | Run ID | Strategy / Architecture | Loss Formulation | Epochs | Peak Val PSNR (dB) | Peak Val SSIM | Peak Val LPIPS (↓) | Status | Notes |
 | :--- | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
 | **Run 13** | **SymUNet** | **Charbonnier** | 15 | **26.9754 dB** | **0.7224** | **0.2954** | 🟢 **COMPLETED** | Verified raw Charbonnier gradient behavior |
 | **Run 13_Hybrid** | **SymUNet** | **Charb-Compound** | 15 | **27.1093 dB** 🚀 | **0.7276** 🚀 | **0.2816** 🚀 | 🟢 **COMPLETED** | **BROKE 27 dB BARRIER!** Tri-Fidelity loss wins across all metrics |
-| **Run 14** | **ResRestorer** (Full-Res ResNet) | **Charb-Compound** | 15 | $\ge 28.5\text{ dB}$ | $\ge 0.74$ | $\le 0.28$ | 🟡 Pending | Eliminates all 4x downsampling; full $128 \times 128$ feature flow |
-| **Run 15** | **ShallowUNet** (2-Stage Multi-Scale)| **Charb-Compound** | 15 | $\ge 28.0\text{ dB}$ | $\ge 0.73$ | $\le 0.28$ | 🟡 Pending | 1 downsampling level only + Dense Residual Blocks |
-| **Run 16** | **Grand Winner + Hybrid Loss** | **Optimal Formulation**| 25 | $\ge 30.0\text{ dB}$ | $\ge 0.76$ | $\le 0.25$ | 🟡 Pending | Final hackathon flagship submission |
+| **Run 14** | **ResRestorer** | **Charbonnier** | 5 | 22.7633 dB | 0.6076 | 0.3403 | 🔴 **ELIMINATED** | $4\times$ too slow (2.5 min/epoch), poor multi-scale receptive field |
+| **Run 15 (Grand Master)** | **SymUNet** | **Charb-Compound** | 25 | $\ge 28.5\text{ dB}$ | $\ge 0.75$ | $\le 0.26$ | 🟡 Pending | 25 Epochs + Cosine Annealing LR ($0.001 \rightarrow 1\text{e-}6$) |
 
 ---
 

@@ -77,7 +77,7 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", type=str, required=True, help="Path to save restored .npy outputs")
     parser.add_argument("--checkpoint", type=str, required=True, help="Path to trained .pth model checkpoint")
     parser.add_argument("--device", type=str, default=None, help="Device to use (cuda/cpu)")
-    parser.add_argument("--model", type=str, default="resrestorer", choices=["resrestorer", "symunet"], help="Model architecture (resrestorer / symunet)")
+    parser.add_argument("--model", type=str, default="symunet", choices=["symunet", "resrestorer"], help="Model architecture (symunet / resrestorer)")
     parser.add_argument("--base_channels", type=int, default=64, help="Base channel count (default: 64)")
     
     args = parser.parse_args()

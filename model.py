@@ -282,13 +282,13 @@ class ResRestorer(nn.Module):
 # ====================================================================
 # 5. MODEL FACTORY
 # ====================================================================
-def get_model(name="resrestorer", in_channels=1, out_channels=1, base_channels=64):
+def get_model(name="symunet", in_channels=1, out_channels=1, base_channels=64):
     """
     Factory to retrieve models cleanly:
-      - 'resrestorer': Full-Resolution Deep Residual Network (No 4x pooling bottleneck, Peak PSNR)
-      - 'symunet': Symmetric U-Net with Attention Gates
+      - 'symunet': Symmetric U-Net with Attention Gates & Channel Attention (Default, Fast & High Performance)
+      - 'resrestorer': Full-Resolution Deep Residual Network
     """
-    name = (name or "resrestorer").lower()
+    name = (name or "symunet").lower()
     if name in ["resrestorer", "edsr", "rcan", "residual_net"]:
         return ResRestorer(
             in_channels=in_channels,

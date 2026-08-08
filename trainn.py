@@ -381,9 +381,9 @@ if __name__ == '__main__':
     parser.add_argument("--use_drive", action="store_true", help="Backup checkpoints to Google Drive")
     parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint .pth to resume from")
     parser.add_argument("--scheduler", type=str, default="plateau", choices=["plateau", "cosine", "none"])
-    parser.add_argument("--loss", type=str, default="charb_compound",
-                        choices=["charb_compound", "charbonnier", "compound", "l1", "mse", "msssim", "baseline"],
-                        help="Loss function (charb_compound / charbonnier / compound / l1 / mse / msssim / baseline)")
+    parser.add_argument("--loss", type=str, default="compound",
+                        choices=["compound", "charb_compound", "charbonnier", "l1", "mse", "msssim", "baseline"],
+                        help="Loss function (compound / charb_compound / charbonnier / l1 / mse / msssim / baseline)")
     parser.add_argument("--w_charb", type=float, default=0.50, help="Weight for Charbonnier loss in charb_compound (default 0.50)")
     parser.add_argument("--w_msssim", type=float, default=0.40, help="Weight for MS-SSIM loss in charb_compound (default 0.40)")
     parser.add_argument("--alpha_zhao", type=float, default=0.90, help="MS-SSIM ratio in Zhao mix (default 0.90)")
@@ -393,7 +393,7 @@ if __name__ == '__main__':
     parser.add_argument("--no_preload_ram", action="store_true", help="Disable RAM dataset preloading")
     parser.add_argument("--save_all_epochs", action="store_true", help="Save separate .pth for every single epoch")
     parser.add_argument("--base_channels", type=int, default=64, help="Base channel count (default 64)")
-    parser.add_argument("--model", type=str, default="resrestorer", choices=["resrestorer", "symunet"], help="Model architecture (resrestorer / symunet)")
+    parser.add_argument("--model", type=str, default="symunet", choices=["symunet", "resrestorer"], help="Model architecture (symunet / resrestorer)")
     args = parser.parse_args()
 
     train(
