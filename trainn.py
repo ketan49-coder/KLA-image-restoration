@@ -371,7 +371,7 @@ if __name__ == '__main__':
     parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint .pth to resume from")
     parser.add_argument("--scheduler", type=str, default="plateau", choices=["plateau", "cosine", "none"])
     parser.add_argument("--loss", type=str, default="l1",
-                        choices=["l1", "l2", "mse", "g_l1", "ssim", "msssim", "l1_ssim", "zhao_paper", "zhao_sem", "l1_msssim", "msssim_85", "zhao_85", "msssim_dominant", "gfl", "l1_msssim_gfl", "compound", "baseline", "all"],
+                        choices=["l1", "l2", "mse", "g_l1", "ssim", "msssim", "l1_ssim", "zhao_paper", "zhao_sem", "l1_msssim", "msssim_50", "zhao_50", "msssim_balanced", "msssim_85", "zhao_85", "msssim_dominant", "gfl", "l1_msssim_gfl", "compound", "baseline", "all"],
                         help="Loss function to evaluate in ablation experiment")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     parser.add_argument("--num_workers", type=int, default=2)
