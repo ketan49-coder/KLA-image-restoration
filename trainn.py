@@ -289,10 +289,8 @@ def train(
             optimizer.zero_grad()
             output = model(noisy)
 
-            # Resize output 128x128 -> 256x256 if needed
-            if output.shape != gt.shape:
-                output = torch.nn.functional.interpolate(output, size=gt.shape[2:], mode='bilinear', align_corners=False)
-
+            # The model naturally outputs the 2x upscaled image via PixelShuffle.
+            # No manual bilinear interpolation needed here anymore.
             loss = criterion(output, gt)
             loss.backward()
             optimizer.step()

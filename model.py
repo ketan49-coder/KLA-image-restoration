@@ -27,7 +27,8 @@ class UNet(nn.Module):
         self.up1 = nn.ConvTranspose2d(128, 64, 2, stride=2)
         self.dec1 = self.conv_block(128, 64)
 
-        self.final = nn.Conv2d(64, out_channels, 1)
+        self.super_res_conv = nn.Conv2d(64, out_channels * 4, kernel_size=3, padding=1)
+        self.pixel_shuffle = nn.PixelShuffle(upscale_factor=2)
         self.pool = nn.MaxPool2d(2, 2)
 
     def conv_block(self, in_ch, out_ch):
@@ -67,4 +68,5 @@ class UNet(nn.Module):
         d1 = torch.cat([d1, e1], dim=1)
         d1 = self.dec1(d1)
 
-        return self.final(d1)
+        sr = self.super_res_conv(d1)
+        return self.pixel_shuffle(sr)

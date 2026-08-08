@@ -3,6 +3,7 @@ from torch.utils.data import Dataset
 import numpy as np
 import os
 import glob
+import random
 
 
 def normalize_image(img_tensor):
@@ -31,6 +32,7 @@ class ImageRestorationDataset(Dataset):
         """
         if split is not None:
             is_val = (split.lower() == 'val' or split.lower() == 'validation')
+        self.is_val = is_val
 
         # Auto-detect GT folder
         possible_gt = glob.glob(os.path.join(data_dir, '**/GT'), recursive=True)
@@ -67,19 +69,36 @@ class ImageRestorationDataset(Dataset):
 
     def __getitem__(self, idx):
         if self.preload_to_ram:
-            return self.noisy_cache[idx], self.gt_cache[idx]
+            noisy, gt = self.noisy_cache[idx], self.gt_cache[idx]
+        else:
+            filename = self.files[idx]
+            gt = np.load(os.path.join(self.gt_dir, filename))
+            noisy = np.load(os.path.join(self.noisy_dir, filename))
 
-        filename = self.files[idx]
-        gt = np.load(os.path.join(self.gt_dir, filename))
-        noisy = np.load(os.path.join(self.noisy_dir, filename))
+            # Add channel dimension: (1, H, W)
+            gt = torch.from_numpy(gt).float().unsqueeze(0)
+            noisy = torch.from_numpy(noisy).float().unsqueeze(0)
 
-        # Add channel dimension: (1, H, W)
-        gt = torch.from_numpy(gt).float().unsqueeze(0)
-        noisy = torch.from_numpy(noisy).float().unsqueeze(0)
+            # Standard Min-Max normalization
+            gt, _, _ = normalize_image(gt)
+            noisy, _, _ = normalize_image(noisy)
 
-        # Standard Min-Max normalization
-        gt, _, _ = normalize_image(gt)
-        noisy, _, _ = normalize_image(noisy)
+        if not self.is_val:
+            # Random horizontal flip
+            if random.random() > 0.5:
+                noisy = torch.flip(noisy, [2])
+                gt = torch.flip(gt, [2])
+            
+            # Random vertical flip
+            if random.random() > 0.5:
+                noisy = torch.flip(noisy, [1])
+                gt = torch.flip(gt, [1])
+
+            # Random 90-degree rotation
+            k = random.randint(0, 3)
+            if k > 0:
+                noisy = torch.rot90(noisy, k, [1, 2])
+                gt = torch.rot90(gt, k, [1, 2])
 
         return noisy, gt
 
