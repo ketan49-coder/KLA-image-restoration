@@ -99,18 +99,20 @@
 ---
 
 ## 🏆 Current Overall Leaderboard Scorecard (Baseline to Date)
-| Model Architecture | Loss Function | Epochs | Peak Val PSNR (dB) | Peak Val SSIM | Peak Val LPIPS (↓) | Checkpoint Path |
-| :--- | :--- | :---: | :---: | :---: | :---: | :--- |
-| Baseline U-Net | L1 + 0.1×MSE | 5 | 22.56 dB | 0.6505 | 0.3770 | `checkpoints/baseline.pth` |
-| Enhanced U-Net | Compound-90 | 9 | 23.47 dB | 0.7109 | 0.3279 | `checkpoints/run12_compound90.pth` |
-| SymUNet (Run 1) | Compound-90 | 15 | 26.9443 dB | 0.7243 | 0.2899 | `checkpoints/stage_2_compound_run1_best.pth` |
-| SymUNet (Run 13) | Charbonnier | 15 | 26.9754 dB | 0.7224 | 0.2954 | `checkpoints/stage_4_charbonnier_run13_best.pth` |
-| **SymUNet (Run 13_Hybrid)**| **Charb-Compound** | **15** | **27.1093 dB** 🏆 | **0.7276** 🏆 | **0.2816** 🏆 | `checkpoints/stage_4_charb_compound_run13_hybrid_best.pth` |
+| Model Architecture | Loss Function | Scheduler | Epochs | Peak Val PSNR (dB) | Peak Val SSIM | Peak Val LPIPS (↓) | Checkpoint Path |
+| :--- | :--- | :--- | :---: | :---: | :---: | :---: | :--- |
+| Baseline U-Net | L1 + 0.1×MSE | — | 5 | 22.56 dB | 0.6505 | 0.3770 | `checkpoints/baseline.pth` |
+| Enhanced U-Net | Compound-90 | Plateau | 9 | 23.47 dB | 0.7109 | 0.3279 | `checkpoints/run12_compound90.pth` |
+| SymUNet (Run 1) | Compound-90 | Plateau | 15 | 26.9443 dB | 0.7243 | 0.2899 | `checkpoints/stage_2_compound_run1_best.pth` |
+| SymUNet (Run 13) | Charbonnier | Plateau | 15 | 26.9754 dB | 0.7224 | 0.2954 | `checkpoints/stage_4_charbonnier_run13_best.pth` |
+| SymUNet (Run 13_Hybrid) | Charb-Compound | Plateau | 15 | 27.1093 dB | 0.7276 | 0.2816 | `checkpoints/stage_4_charb_compound_run13_hybrid_best.pth` |
+| ResRestorer (Run 14) | Charbonnier | Plateau | 15 | 22.7633 dB | 0.6076 | 0.3403 | 🔴 Eliminated (4× too slow) |
+| **SymUNet (Run 15)** | **Compound-90** | **Cosine** | **25** | **27.4878 dB** 🏆 | **0.7390** 🏆 | **0.2827** | `checkpoints/stage_4_compound_run15_best.pth` |
 
 **Net Improvement over Baseline:**
-- **+4.55 dB PSNR** improvement (from 22.56 dB $\rightarrow$ **27.11 dB**)
-- **+0.0771 SSIM** improvement (from 0.6505 $\rightarrow$ **0.7276**)
-- **-0.0954 LPIPS** perceptual error reduction (from 0.3770 $\rightarrow$ **0.2816**, new benchmark record!)
+- **+4.93 dB PSNR** improvement (from 22.56 dB $\rightarrow$ **27.49 dB**)
+- **+0.0885 SSIM** improvement (from 0.6505 $\rightarrow$ **0.7390**)
+- **-0.0943 LPIPS** perceptual error reduction (from 0.3770 $\rightarrow$ **0.2827**)
 
 ---
 
