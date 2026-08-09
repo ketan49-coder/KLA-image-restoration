@@ -108,7 +108,7 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", type=str, required=True, help="Path to save restored .npy outputs")
     parser.add_argument("--checkpoint", type=str, required=True, help="Path to trained .pth model checkpoint")
     parser.add_argument("--device", type=str, default=None, help="Device to use (cuda/cpu)")
-    parser.add_argument("--model", type=str, default="symunet", choices=["symunet", "rrdb", "resrestorer"], help="Model architecture (symunet / rrdb / resrestorer)")
+    parser.add_argument("--model", type=str, default="symunet", choices=["symunet", "rrdb", "resrestorer", "ultra_unet"], help="Model architecture (symunet / rrdb / resrestorer / ultra_unet)")
     parser.add_argument("--base_channels", type=int, default=64, help="Base channel count (default: 64)")
     parser.add_argument("--batch_size", type=int, default=8, help="Inference batch size (default: 8)")
     parser.add_argument("--no_fp16", action="store_true", help="Disable FP16 mixed precision inference")
