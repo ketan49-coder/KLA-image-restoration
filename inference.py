@@ -22,54 +22,85 @@ def normalize_image(img_tensor):
 def denormalize_image(norm_tensor, min_val, max_val):
     return (norm_tensor * (max_val - min_val + 1e-8)) + min_val
 
-def run_inference(input_dir, output_dir, checkpoint_path, device=None, model_type="symunet", base_channels=64):
+def run_inference(input_dir, output_dir, checkpoint_path, device=None, model_type="symunet", base_channels=64, batch_size=8, use_fp16=True, use_compile=False):
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
+    is_cuda = device.type == "cuda"
     print(f"[INFO] Using device: {device} | Model: {model_type.upper()}")
 
-    # Load model via Factory
+    # ── 1. Load model to GPU ONCE ──────────────────────────────────
     model = get_model(model_type, in_channels=1, out_channels=1, base_channels=base_channels).to(device)
     checkpoint = torch.load(checkpoint_path, map_location=device)
     state_dict = checkpoint.get("model_state_dict", checkpoint) if isinstance(checkpoint, dict) else checkpoint
     model.load_state_dict(state_dict)
-    model.eval()
+    model.eval()  # BatchNorm uses running stats, Dropout disabled
     print(f"[INFO] Loaded checkpoint from: {checkpoint_path}")
 
-    # Setup directories
+    # ── 2. torch.compile (PyTorch 2.0+ graph optimization) ────────
+    if use_compile:
+        try:
+            model = torch.compile(model)
+            print("[INFO] ⚡ torch.compile() applied — fused graph optimization enabled")
+        except Exception as e:
+            print(f"[INFO] torch.compile() skipped: {e}")
+
+    # ── 3. Setup directories ──────────────────────────────────────
     os.makedirs(output_dir, exist_ok=True)
     
     # Find all .npy files
     search_pattern = os.path.join(input_dir, "**/*.npy")
-    test_files = glob.glob(search_pattern, recursive=True)
+    test_files = sorted(glob.glob(search_pattern, recursive=True))
     if not test_files:
-        test_files = glob.glob(os.path.join(input_dir, "*.npy"))
+        test_files = sorted(glob.glob(os.path.join(input_dir, "*.npy")))
         
-    print(f"[INFO] Found {len(test_files)} images to process.")
+    total = len(test_files)
+    print(f"[INFO] Found {total} images to process (batch_size={batch_size}, fp16={use_fp16 and is_cuda})")
 
-    with torch.no_grad():
-        for file_path in test_files:
-            filename = os.path.basename(file_path)
+    # ── 4. Batched Inference with Mixed Precision ─────────────────
+    processed = 0
+    with torch.no_grad():  # Skip autograd graph entirely — free speed + memory win
+        for batch_start in range(0, total, batch_size):
+            batch_files = test_files[batch_start : batch_start + batch_size]
             
-            # Load and preprocess
-            noisy = np.load(file_path)
-            noisy_t = torch.from_numpy(noisy).float().unsqueeze(0).unsqueeze(0) # (1, 1, H, W)
+            # Load and normalize each image in this batch
+            batch_tensors = []
+            batch_params = []  # Store (min_val, max_val) for denormalization
             
-            noisy_norm, min_val, max_val = normalize_image(noisy_t)
-            noisy_norm = noisy_norm.to(device)
+            for file_path in batch_files:
+                noisy = np.load(file_path)
+                noisy_t = torch.from_numpy(noisy).float().unsqueeze(0).unsqueeze(0)  # (1, 1, H, W)
+                noisy_norm, min_val, max_val = normalize_image(noisy_t)
+                batch_tensors.append(noisy_norm)
+                batch_params.append((min_val, max_val))
             
-            # Inference
-            output = model(noisy_norm)
+            # Stack into a single batch tensor: (B, 1, H, W)
+            batch_input = torch.cat(batch_tensors, dim=0).to(device)
             
-            # Denormalize and save
-            output = output.cpu()
-            restored = denormalize_image(output, min_val, max_val)
-            restored_np = restored.squeeze().numpy()
+            # Forward pass with FP16 mixed precision (1.5-2x speedup on CUDA)
+            if use_fp16 and is_cuda:
+                with torch.autocast(device_type='cuda', dtype=torch.float16):
+                    batch_output = model(batch_input)
+                batch_output = batch_output.float()  # Cast back to FP32 for saving
+            else:
+                batch_output = model(batch_input)
             
-            out_path = os.path.join(output_dir, filename)
-            np.save(out_path, restored_np)
+            # Denormalize and save each image
+            batch_output = batch_output.cpu()
+            for i, file_path in enumerate(batch_files):
+                filename = os.path.basename(file_path)
+                min_val, max_val = batch_params[i]
+                restored = denormalize_image(batch_output[i:i+1], min_val, max_val)
+                restored_np = restored.squeeze().numpy()
+                
+                out_path = os.path.join(output_dir, filename)
+                np.save(out_path, restored_np)
             
-    print(f"[INFO] Inference complete. Saved to: {output_dir}")
+            processed += len(batch_files)
+            if processed % max(batch_size * 4, 32) == 0 or processed == total:
+                print(f"  [Progress] {processed}/{total} images processed")
+
+    print(f"\n[INFO] ✅ Inference complete. {total} images saved to: {output_dir}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Standalone Inference Script for KLA Restoration Model")
@@ -79,7 +110,14 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default=None, help="Device to use (cuda/cpu)")
     parser.add_argument("--model", type=str, default="symunet", choices=["symunet", "resrestorer"], help="Model architecture (symunet / resrestorer)")
     parser.add_argument("--base_channels", type=int, default=64, help="Base channel count (default: 64)")
+    parser.add_argument("--batch_size", type=int, default=8, help="Inference batch size (default: 8)")
+    parser.add_argument("--no_fp16", action="store_true", help="Disable FP16 mixed precision inference")
+    parser.add_argument("--compile", action="store_true", help="Enable torch.compile() graph optimization (PyTorch 2.0+)")
     
     args = parser.parse_args()
     
-    run_inference(args.input_dir, args.output_dir, args.checkpoint, device=args.device, model_type=args.model, base_channels=args.base_channels)
+    run_inference(
+        args.input_dir, args.output_dir, args.checkpoint,
+        device=args.device, model_type=args.model, base_channels=args.base_channels,
+        batch_size=args.batch_size, use_fp16=not args.no_fp16, use_compile=args.compile
+    )
