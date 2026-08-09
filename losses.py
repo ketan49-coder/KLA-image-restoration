@@ -136,26 +136,44 @@ class ZhaoMixLoss(nn.Module):
 
 
 # ====================================================================
-# 3. GUIDED FREQUENCY LOSS (2D FFT)
+# 3. FOCAL FREQUENCY LOSS (2D FFT)
 # ====================================================================
-class GuidedFrequencyLoss(nn.Module):
+class FocalFrequencyLoss(nn.Module):
     """
-    Guided Frequency Loss (GFL) via 2D Real FFT with orthonormal normalization.
+    Focal Frequency Loss (FFL) via 2D Real FFT.
+    Fixes two critical issues for SEM imagery:
+    1. Charbonnier Robustness: Frequency bins corrupted by sensor noise are 
+       outliers. A raw L1 penalty overreacts to them. Charbonnier smoothly
+       handles these outliers without dying gradients.
+    2. Adaptive Focal Weighting: Dynamically weights the loss based on the 
+       *current error* matrix rather than a static ground truth map. As 
+       training progresses, the network automatically hunts down whichever 
+       frequency bands it is still struggling to reconstruct.
     """
-    def __init__(self, alpha=0.2):
-        super(GuidedFrequencyLoss, self).__init__()
-        self.alpha = alpha
+    def __init__(self, gamma=1.0, eps=1e-3):
+        super(FocalFrequencyLoss, self).__init__()
+        self.gamma = gamma
+        self.eps = eps
 
     def forward(self, pred, target):
+        # Compute orthonormal 2D FFT
         pred_fft = torch.fft.rfft2(pred, norm="ortho")
         target_fft = torch.fft.rfft2(target, norm="ortho")
 
+        # Extract magnitudes
         pred_mag = torch.abs(pred_fft)
         target_mag = torch.abs(target_fft)
 
-        weight = 1.0 + self.alpha * target_mag
-        freq_diff = torch.abs(pred_mag - target_mag)
-        return torch.mean(weight * freq_diff)
+        # 1. Charbonnier Robustness (replaces outlier-prone raw L1 difference)
+        diff = pred_mag - target_mag
+        charb_diff = torch.sqrt((diff * diff) + (self.eps * self.eps))
+
+        # 2. Dynamic Focal Weighting (focuses on currently failing frequencies)
+        # Detach to prevent gradients from flowing through the weighting factor itself
+        focal_weight = (charb_diff.detach() ** self.gamma)
+
+        # Final focused robust loss
+        return torch.mean(focal_weight * charb_diff)
 
 
 # ====================================================================
@@ -173,7 +191,7 @@ class CompoundRestorationLoss(nn.Module):
         super(CompoundRestorationLoss, self).__init__()
         self.w_gfl = w_gfl
         self.zhao_mix = ZhaoMixLoss(alpha=alpha)
-        self.gfl = GuidedFrequencyLoss(alpha=0.2)
+        self.gfl = FocalFrequencyLoss(gamma=1.0)
 
     def forward(self, pred, target):
         return (1.0 - self.w_gfl) * self.zhao_mix(pred, target) + self.w_gfl * self.gfl(pred, target)
@@ -216,9 +234,12 @@ class CharbonnierCompoundLoss(nn.Module):
         self.w_charb = w_charb
         self.w_msssim = w_msssim
         self.w_gfl = w_gfl
+
         self.charbonnier = CharbonnierLoss(eps=eps)
-        self.ms_ssim = ExactMSSSIMLoss()
-        self.gfl = GuidedFrequencyLoss()
+        # 5-scale MS-SSIM
+        self.ms_ssim = ExactMSSSIMLoss(window_size=3) 
+        # 2D Fast Fourier Transform (FFT) loss
+        self.gfl = FocalFrequencyLoss(gamma=1.0, eps=eps)
 
     def forward(self, pred, target):
         loss_c = self.charbonnier(pred, target)
