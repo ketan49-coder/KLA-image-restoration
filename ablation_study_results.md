@@ -246,3 +246,26 @@ where $\alpha = 0.90$ and $w_{\text{GFL}} = 0.10$.
 | 7 | 0.0777 | 0.0754 | 23.1906 | 0.7057 | 0.3368 | 5.0e-4 |
 | 8 | 0.0768 | 0.0724 | 23.4673 | 0.7109 | 0.3279 | 5.0e-4 |
 | 9 | 0.0764 | 0.0803 | 23.2721 | 0.6966 | 0.3317 | 5.0e-4 |
+
+---
+
+## 🔬 Methodology: The "Tri-Fidelity" Loss (Charb-Compound)
+For the final submissions, we engineered a highly custom loss function specifically tailored to the unique physics of SEM (Scanning Electron Microscope) wafer imagery. SEM images suffer from heavy, signal-dependent Poisson-Gaussian electron noise while containing critical, razor-sharp semiconductor structural lines. 
+
+Standard L1/L2 losses result in blurry edges, while pure structural losses (SSIM) can leave behind splotchy noise artifacts. To solve this, we formulated the **Tri-Fidelity Loss (`charb_compound`)**:
+
+$$\mathcal{L}_{\text{Tri-Fidelity}} = \lambda_1 \mathcal{L}_{\text{Charbonnier}} + \lambda_2 \mathcal{L}_{\text{MS-SSIM}} + \lambda_3 \mathcal{L}_{\text{GFL}}$$
+
+*(Default Weights: $\lambda_1 = 0.50, \lambda_2 = 0.40, \lambda_3 = 0.10$)*
+
+### 1. Robust Intensity Anchoring ($\mathcal{L}_{\text{Charbonnier}}$)
+$$\mathcal{L}_{\text{Charbonnier}} = \sqrt{(y - \hat{y})^2 + \epsilon^2}$$
+Unlike standard L1 loss which has a singular derivative, or L2 (MSE) which overly penalizes large errors, the Charbonnier penalty ($\epsilon = 10^{-6}$) is differentiable everywhere. It is heavily utilized in top-tier image restoration networks (like MIRNet and LapSRN) because it robustly handles extreme noise outliers without suffering from "dead gradients" near zero.
+
+### 2. Multi-Scale Structural Preservation ($\mathcal{L}_{\text{MS-SSIM}}$)
+We compute the Structural Similarity Index Measure (SSIM) across 5 different Gaussian pyramid scales. This forces the network to preserve both micro-textures (like the grain of the wafer) and macro-structures (the sweeping semiconductor lines) simultaneously, ensuring the structural integrity of the restored wafer.
+
+### 3. High-Frequency Edge Restoration ($\mathcal{L}_{\text{GFL}}$)
+Global Frequency Loss (GFL) computes the 2D Fast Fourier Transform (FFT) of both the prediction and the ground truth. By applying an L1 penalty directly in the frequency domain, we force the network to perfectly reconstruct high-frequency harmonics. This explicitly prevents the blurry, over-smoothed edges commonly seen in standard CNN outputs, ensuring the semiconductor lines remain razor-sharp.
+
+**Conclusion:** By fusing these three distinct paradigms (Intensity, Structure, and Frequency), we achieved an explosive convergence rate, hitting **>27 dB PSNR in just 14 epochs** during our ablation trials (Run 13_Hybrid).
