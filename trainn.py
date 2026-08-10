@@ -9,7 +9,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR
 
-from model import SymUNet, get_model
+from model import get_model
 from dataset import ImageRestorationDataset
 from losses import get_loss_function
 from metrics import RestorationMetrics

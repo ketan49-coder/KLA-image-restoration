@@ -3,7 +3,7 @@ import argparse
 import glob
 import numpy as np
 import torch
-from model import SymUNet, get_model
+from model import get_model
 
 def normalize_image(img_tensor):
     """
