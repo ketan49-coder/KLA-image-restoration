@@ -13,6 +13,7 @@ from model import SymUNet, get_model
 from dataset import ImageRestorationDataset
 from losses import get_loss_function
 from metrics import RestorationMetrics
+from composite_metric import CompositeScorer
 
 # Default paths
 DEFAULT_DATA_DIR = 'train/train'
@@ -72,11 +73,11 @@ def log_experiment_to_md(stage, run_number, epoch, loss_name, train_loss, val_lo
         f.write(f"| {timestamp} | {stage} | {run_number} | {epoch} | {loss_name} | {train_loss:.4f} | {val_loss:.4f} | {metrics_dict['psnr']:.4f} | {metrics_dict['ssim']:.4f} | {lpips_str} | {lr:.6f} | {best_marker} |\n")
 
 
-def save_smart_checkpoint(model, optimizer, scheduler, epoch, train_loss, val_loss, metrics_dict, is_best, best_val_psnr, model_name="symunet", stage="stage_2", run_number=1, loss_name="l1", use_drive=False, save_all=False):
+def save_smart_checkpoint(model, optimizer, scheduler, scorer, epoch, train_loss, val_loss, metrics_dict, is_best, best_val_psnr, model_name="symunet", stage="stage_2", run_number=1, loss_name="l1", use_drive=False, save_all=False):
     """
     Smart Checkpoint Manager:
       - Always saves '{stage}_{model_name}_{loss_name}_run{run_number}_latest.pth'
-      - Saves '{stage}_{model_name}_{loss_name}_run{run_number}_best.pth' when highest Val PSNR is reached
+      - Saves '{stage}_{model_name}_{loss_name}_run{run_number}_best.pth' when highest Composite Score is reached
       - Keeps Google Drive storage lean and prevents quota exhaustion.
     """
     os.makedirs('checkpoints', exist_ok=True)
@@ -91,6 +92,7 @@ def save_smart_checkpoint(model, optimizer, scheduler, epoch, train_loss, val_lo
         'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
         'scheduler_state_dict': scheduler.state_dict() if scheduler else None,
+        'scorer_state_dict': scorer.state_dict() if scorer else None,
         'train_loss': train_loss,
         'val_loss': val_loss,
         'best_val_psnr': best_val_psnr,
@@ -266,6 +268,7 @@ def train(
     # 6. Checkpoint Resume Logic
     start_epoch = 0
     best_val_psnr = -float('inf')
+    scorer = CompositeScorer()
 
     if resume_path and os.path.exists(resume_path):
         print(f"\n📂 Resuming from Checkpoint: {resume_path}")
@@ -286,11 +289,21 @@ def train(
                 print("✓ Scheduler state restored")
             except Exception as e:
                 print(f"⚠ Could not restore scheduler: {e}")
+                
+        if scorer and isinstance(checkpoint, dict) and checkpoint.get('scorer_state_dict'):
+            try:
+                scorer.load_state_dict(checkpoint['scorer_state_dict'])
+                print("✓ Composite Scorer state restored")
+            except Exception as e:
+                print(f"⚠ Could not restore scorer: {e}")
 
         start_epoch = checkpoint.get('epoch', 0) if isinstance(checkpoint, dict) else 0
         # Look for explicit best_val_psnr first, fallback to val_psnr if old checkpoint
         best_val_psnr = checkpoint.get('best_val_psnr', checkpoint.get('val_psnr', -float('inf'))) if isinstance(checkpoint, dict) else -float('inf')
-        print(f"✓ Resumed from Epoch {start_epoch} (Prior Best Val PSNR: {best_val_psnr:.4f} dB)\n")
+        
+        # Display resume info
+        best_score_str = f" | Best Score: {scorer.best_score:.4f}" if scorer.best_score != -float('inf') else ""
+        print(f"✓ Resumed from Epoch {start_epoch} (Prior Best Val PSNR: {best_val_psnr:.4f} dB{best_score_str})\n")
 
     total_epochs = start_epoch + epochs
     print(f"⚡ Ready! Training on {len(train_dataset)} images, Validating on {len(val_dataset)} images (Epochs {start_epoch + 1} to {total_epochs})...\n")
@@ -325,9 +338,17 @@ def train(
         val_loss, val_metrics = evaluate_validation(model, val_loader, criterion, metric_evaluator, device)
         curr_lr = optimizer.param_groups[0]['lr']
 
-        is_best = val_metrics['psnr'] > best_val_psnr
-        if is_best:
+        # Update best PSNR tracking (for scheduler and logs)
+        if val_metrics['psnr'] > best_val_psnr:
             best_val_psnr = val_metrics['psnr']
+
+        # Determine IS_BEST using the new CompositeScorer (combines PSNR, SSIM, and LPIPS)
+        val_lpips_val = val_metrics.get('lpips', 0.5) # Fallback if LPIPS missing
+        is_best, composite_score, _ = scorer.is_new_best(
+            psnr=val_metrics['psnr'],
+            ssim=val_metrics['ssim'],
+            lpips=val_lpips_val
+        )
 
         # Step Scheduler (tracking Val PSNR if plateau)
         if scheduler:
@@ -336,9 +357,10 @@ def train(
             else:
                 scheduler.step()
 
-        lpips_display = f" | Val LPIPS: {val_metrics['lpips']:.4f}" if val_metrics.get('lpips') is not None else ""
+        lpips_display = f" | Val LPIPS: {val_lpips_val:.4f}"
+        score_display = f" | Score: {composite_score:.4f}"
         print("-" * 80)
-        print(f"✅ Epoch {epoch+1}/{total_epochs} Complete | Train Loss: {avg_train_loss:.4f} | Val Loss: {val_loss:.4f} | Val PSNR: {val_metrics['psnr']:.4f} dB | Val SSIM: {val_metrics['ssim']:.4f}{lpips_display}")
+        print(f"✅ Epoch {epoch+1}/{total_epochs} Complete | Train Loss: {avg_train_loss:.4f} | Val Loss: {val_loss:.4f} | Val PSNR: {val_metrics['psnr']:.4f} dB | Val SSIM: {val_metrics['ssim']:.4f}{lpips_display}{score_display}")
         print("-" * 80)
 
         # Auto-append to training_log.md
@@ -359,6 +381,7 @@ def train(
             model=model,
             optimizer=optimizer,
             scheduler=scheduler,
+            scorer=scorer,
             epoch=epoch+1,
             train_loss=avg_train_loss,
             val_loss=val_loss,
