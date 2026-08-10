@@ -24,14 +24,13 @@ The script accepts a folder of degraded `.npy` images, processes them through th
 
 ### Inference Command
 ```bash
-python inference.py --input_dir /path/to/test/images --output_dir /path/to/output/folder --checkpoint /path/to/trained_model.pth --model symunet
+python inference.py --input_dir /path/to/test/images --output_dir /path/to/output/folder --checkpoint /path/to/trained_model.pth
 ```
 
 ### Arguments:
 - `--input_dir`: Path to the directory containing degraded 128x128 images.
 - `--output_dir`: Path where the restored 256x256 images will be saved.
 - `--checkpoint`: Path to the `.pth` weights file (e.g., `best_model.pth`).
-- `--model`: The architecture used (e.g., `symunet`, `nafnet`, `ultraunet`). *(Note: Check the filename of the provided weights to see which architecture flag to use).*
 - `--no_tta`: *(Optional)* Pass this flag to disable the 8x Test-Time Augmentation if you wish to see the raw base speed (though TTA easily passes the 10-second rule on an H100).
 - `--no_fp16`: *(Optional)* Pass this flag to disable FP16 Mixed Precision inference.
 
@@ -39,11 +38,9 @@ python inference.py --input_dir /path/to/test/images --output_dir /path/to/outpu
 
 ## 🧠 3. Model Architecture & Training Details
 
-This repository implements multiple SOTA restoration architectures that were explicitly engineered to balance **Speed** (passing the 10-second penalty rule) and **Quality**:
+This repository implements the SOTA restoration architecture explicitly engineered to balance **Speed** (passing the 10-second penalty rule) and **Quality**:
 
-1. **NAFNet (Nonlinear Activation Free Network):** Achieves Transformer-level PSNR while retaining CNN inference speeds.
-2. **SymUNet:** An ultra-fast baseline utilizing Attention Gates.
-3. **UltraUNet:** A deep capacity network featuring an ASPP bottleneck.
+1. **NAFNet (Nonlinear Activation Free Network):** Achieves Transformer-level PSNR while retaining CNN inference speeds. Our champion architecture.
 
 ### The Quad-Fidelity Loss Function
 Our models were trained using a custom `QuadFidelityLoss` function designed specifically to eliminate the "high PSNR but blurry" failure mode. It combines four distinct penalties:
@@ -57,5 +54,5 @@ Furthermore, checkpoints were evaluated and selected using a custom `CompositeSc
 ### Reproducing the Training
 To reproduce our training pipeline from scratch:
 ```bash
-python trainn.py --data_dir /path/to/train --model nafnet --loss quad_fidelity --scheduler cosine --epochs 600
+python trainn.py --data_dir /path/to/train --epochs 1600
 ```

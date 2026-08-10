@@ -33,6 +33,11 @@ Our `inference.py` script now has hardcoded 8x TTA. This means on Submission Day
 
 ## 🎯 Next Steps
 
-Make sure you run `git pull` (or `wget` the scripts) to get all these safety features into your Colab environment before your next training run. 
+1. **Pull the Code**: Make sure you run `git pull` (or `wget` the scripts) to get all these safety features and the hyper-simplified scripts into your Colab environment.
+2. **Start the Relay**: We have pruned all dead code and ablation options. To kick off your 200-epoch chunk of the 1600-epoch relay, the command is now simply:
+   ```bash
+   python trainn.py --data_dir /path/to/train --use_drive
+   ```
+   (And to resume later, just append `--resume /path/to/checkpoint.pth`).
 
 Good luck!

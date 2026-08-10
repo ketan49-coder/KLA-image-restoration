@@ -183,28 +183,26 @@ def evaluate_validation(model, val_loader, criterion, metric_evaluator, device):
 
 
 def train(
-    epochs=9,
+    epochs=1600,
     batch_size=8,
-    lr=0.001,
-    stage="stage_2",
+    lr=0.002,
+    stage="final",
     run_number=1,
     data_dir=DEFAULT_DATA_DIR,
     use_drive=False,
     resume_path=None,
-    scheduler_type="plateau",
-    loss_type="compound",
     seed=42,
     num_workers=2,
     preload_ram=True,
     save_all_epochs=False,
-    alpha_zhao=0.90,
-    w_gfl=0.10,
-    w_charb=0.50,
-    w_msssim=0.40,
-    base_channels=64,
-    model_type="symunet",
+    base_channels=32,
     packed_data=None
 ):
+    # Hardcoded Champion Configuration
+    model_type = "nafnet"
+    loss_type = "quad_fidelity"
+    scheduler_type = "cosine"
+
     # Set seed
     set_seed(seed)
 
@@ -252,14 +250,8 @@ def train(
     # 3. Metric Evaluator
     metric_evaluator = RestorationMetrics(device=device, compute_lpips=True)
 
-    # 4. Loss Function via Factory
-    criterion = get_loss_function(
-        loss_type, 
-        alpha_zhao=alpha_zhao, 
-        w_gfl=w_gfl,
-        w_charb=w_charb,
-        w_msssim=w_msssim
-    ).to(device)
+    # 4. Loss Function via Factory (Hardcoded to QuadFidelity)
+    criterion = get_loss_function(loss_type).to(device)
 
     # 5. Optimizer & Scheduler
     optimizer = optim.Adam(model.parameters(), lr=lr)
@@ -411,7 +403,7 @@ def train(
             metrics_dict=val_metrics,
             is_best=is_best,
             best_val_psnr=best_val_psnr,
-            model_name=args.model,
+            model_name=model_type,
             stage=stage,
             run_number=run_number,
             loss_name=loss_type,
@@ -424,29 +416,20 @@ def train(
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Modular Ablation Training Script for KLA Restoration")
-    parser.add_argument("--epochs", type=int, default=7, help="Number of epochs to train")
+    parser = argparse.ArgumentParser(description="Final Submission Training Script for KLA Restoration")
+    parser.add_argument("--epochs", type=int, default=1600, help="Number of epochs to train")
     parser.add_argument("--batch_size", type=int, default=8)
-    parser.add_argument("--lr", type=float, default=0.001)
-    parser.add_argument("--stage", type=str, default="stage_2")
-    parser.add_argument("--run_number", type=str, default="1", help="Run identifier (e.g. 13, 13_hybrid, 14)")
+    parser.add_argument("--lr", type=float, default=0.002, help="Initial learning rate for NAFNet")
+    parser.add_argument("--stage", type=str, default="final")
+    parser.add_argument("--run_number", type=str, default="1")
     parser.add_argument("--data_dir", type=str, default=DEFAULT_DATA_DIR)
     parser.add_argument("--use_drive", action="store_true", help="Backup checkpoints to Google Drive")
     parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint .pth to resume from")
-    parser.add_argument("--scheduler", type=str, default="plateau", choices=["plateau", "cosine", "none"])
-    parser.add_argument("--loss", type=str, default="compound",
-                        choices=["compound", "charb_compound", "charbonnier", "l1", "mse", "msssim", "baseline", "quad_fidelity"],
-                        help="Loss function (compound / charb_compound / charbonnier / l1 / mse / msssim / baseline / quad_fidelity)")
-    parser.add_argument("--w_charb", type=float, default=0.50, help="Weight for Charbonnier loss in charb_compound (default 0.50)")
-    parser.add_argument("--w_msssim", type=float, default=0.40, help="Weight for MS-SSIM loss in charb_compound (default 0.40)")
-    parser.add_argument("--alpha_zhao", type=float, default=0.90, help="MS-SSIM ratio in Zhao mix (default 0.90)")
-    parser.add_argument("--w_gfl", type=float, default=0.10, help="Weight for GFL frequency loss (default 0.10)")
     parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
     parser.add_argument("--num_workers", type=int, default=2)
     parser.add_argument("--no_preload_ram", action="store_true", help="Disable RAM dataset preloading")
     parser.add_argument("--save_all_epochs", action="store_true", help="Save separate .pth for every single epoch")
-    parser.add_argument("--base_channels", type=int, default=64, help="Base channel count (default 64)")
-    parser.add_argument("--model", type=str, default="symunet", choices=["symunet", "rrdb", "resrestorer", "ultra_unet", "nafnet"], help="Model architecture (symunet / rrdb / resrestorer / ultra_unet / nafnet)")
+    parser.add_argument("--base_channels", type=int, default=32, help="Base channel count for NAFNet (default 32)")
     parser.add_argument("--packed_data", type=str, default=None, help="Path to packed .pt dataset file (created by pack_dataset.py). Skips slow .npy loading.")
     args = parser.parse_args()
 
@@ -459,17 +442,10 @@ if __name__ == '__main__':
         data_dir=args.data_dir,
         use_drive=args.use_drive,
         resume_path=args.resume,
-        scheduler_type=args.scheduler,
-        loss_type=args.loss,
         seed=args.seed,
         num_workers=args.num_workers,
         preload_ram=(not args.no_preload_ram),
         save_all_epochs=args.save_all_epochs,
-        alpha_zhao=args.alpha_zhao,
-        w_gfl=args.w_gfl,
-        w_charb=args.w_charb,
-        w_msssim=args.w_msssim,
         base_channels=args.base_channels,
-        model_type=args.model,
         packed_data=args.packed_data
     )

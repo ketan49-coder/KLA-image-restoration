@@ -65,11 +65,12 @@ def forward_tta(model, x, use_fp16, is_cuda):
     
     return torch.mean(torch.stack(outputs), dim=0)
 
-def run_inference(input_dir, output_dir, checkpoint_path, device=None, model_type="symunet", base_channels=64, batch_size=8, use_fp16=True, use_compile=False, use_tta=True):
+def run_inference(input_dir, output_dir, checkpoint_path, device=None, base_channels=32, batch_size=8, use_fp16=True, use_compile=False, use_tta=True):
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
     is_cuda = device.type == "cuda"
+    model_type = "nafnet"
     print(f"[INFO] Using device: {device} | Model: {model_type.upper()}")
 
     # ── 1. Load model to GPU ONCE ──────────────────────────────────
@@ -149,8 +150,7 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", type=str, required=True, help="Path to save restored .npy outputs")
     parser.add_argument("--checkpoint", type=str, required=True, help="Path to trained .pth model checkpoint")
     parser.add_argument("--device", type=str, default=None, help="Device to use (cuda/cpu)")
-    parser.add_argument("--model", type=str, default="symunet", choices=["symunet", "rrdb", "resrestorer", "ultra_unet", "nafnet"], help="Model architecture (symunet / rrdb / resrestorer / ultra_unet / nafnet)")
-    parser.add_argument("--base_channels", type=int, default=64, help="Base channel count (default: 64)")
+    parser.add_argument("--base_channels", type=int, default=32, help="Base channel count for NAFNet (default: 32)")
     parser.add_argument("--batch_size", type=int, default=8, help="Inference batch size (default: 8)")
     parser.add_argument("--no_fp16", action="store_true", help="Disable FP16 mixed precision inference")
     parser.add_argument("--no_tta", action="store_true", help="Disable 8x Test-Time Augmentation (TTA)")
@@ -160,6 +160,6 @@ if __name__ == "__main__":
     
     run_inference(
         args.input_dir, args.output_dir, args.checkpoint,
-        device=args.device, model_type=args.model, base_channels=args.base_channels,
+        device=args.device, base_channels=args.base_channels,
         batch_size=args.batch_size, use_fp16=not args.no_fp16, use_compile=args.compile, use_tta=not args.no_tta
     )
