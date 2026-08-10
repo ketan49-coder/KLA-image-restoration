@@ -65,9 +65,10 @@ class ImageRestorationDataset(Dataset):
         self.gt_cache = []
 
         if self.preload_to_ram:
+            from tqdm import tqdm
             split_name = "Validation" if is_val else "Training"
             print(f"⚡ Preloading {len(self.files)} {split_name} images into RAM...")
-            for f in self.files:
+            for f in tqdm(self.files, desc=f"Loading {split_name}"):
                 gt_arr = np.load(os.path.join(self.gt_dir, f))
                 noisy_arr = np.load(os.path.join(self.noisy_dir, f))
 
