@@ -1,26 +1,23 @@
 # KLA Image Restoration: Ablation & Architecture Study
 
-## 🏆 Current All-Time Champions (As of Run 15 — Grand Master)
+## 🏆 Current All-Time Champions (As of Run 19 — Grand Master)
 
-### 🥇 1. Best Overall Configuration: **`SymUNet` + `Compound-90` + `Cosine Annealing LR` (25 Epochs)**
-- **Peak Val PSNR:** **`27.4878 dB`** 🏆 *(NEW ALL-TIME RECORD — Epoch 24)*
-- **Peak Val SSIM:** **`0.7390`** 🏆 *(NEW ALL-TIME RECORD — Epoch 23/24)*
-- **Peak Val LPIPS:** **`0.2827`** *(Epoch 22 — virtually tied with Run 13_Hybrid's 0.2816)*
-- **Best Checkpoint:** `checkpoints/stage_4_compound_run15_best.pth`
-- **Steady-State Avg PSNR (Ep 16–25):** **`27.2282 dB`** 🏆 *(+0.35 dB above previous best average)*
-- **Steady-State Avg SSIM (Ep 16–25):** **`0.7357`** 🏆
-- **Steady-State Avg LPIPS (Ep 16–25):** **`0.2956`**
+### 🥇 1. Best Overall Configuration: **`SymUNet` + `Charb-Compound (Tri-Fidelity)` + `Cosine Annealing LR` (25 Epochs)**
+- **Peak Val PSNR:** **`27.7236 dB`** 🏆 *(NEW ALL-TIME RECORD — Epoch 25, Run 19)*
+- **Peak Val SSIM:** **`0.7442`** 🏆 *(NEW ALL-TIME RECORD — Epoch 24, Run 19)*
+- **Peak Val LPIPS:** **`0.2871`** *(Epoch 14, Run 19)*
+- **Best Checkpoint:** `checkpoints/stage_4_charb_compound_run19_best.pth`
 
 ### 👑 2. Undisputed Best Model Architecture: **`SymUNet`**
 - Symmetric Residual U-Net with Attention Gates & Channel Attention.
 
-### 🎯 3. Undisputed Best Loss Function: **`Compound-90`**
-- **Formulation:** $0.90 \cdot \mathcal{L}_{\text{MS-SSIM}} + 0.10 \cdot \mathcal{L}_{\text{L1}} + 0.10 \cdot \mathcal{L}_{\text{GFL}}$
-- Wins on both peak and average metrics.
+### 🎯 3. Undisputed Best Loss Function: **`Charb-Compound (Tri-Fidelity)`**
+- **Formulation:** $0.50 \cdot \mathcal{L}_{\text{Charbonnier}} + 0.40 \cdot \mathcal{L}_{\text{MS-SSIM}} + 0.10 \cdot \mathcal{L}_{\text{FFL}}$
+- Custom Focal Frequency Loss with Charbonnier robustness and dynamic adaptive weighting.
+- Beats previous Compound-90 record by **+0.24 dB**.
 
 ### ⚡ 4. Best Scheduler: **`CosineAnnealingLR`** ($0.001 \rightarrow 1\text{e-}6$ over 25 epochs)
-- Eliminated the PSNR oscillation problem from ReduceLROnPlateau.
-- Model kept climbing steadily from Epoch 16 to Epoch 24 without a single regression.
+- PSNR kept climbing all the way to the final epoch (27.72 dB at Epoch 25).
 
 ---
 
