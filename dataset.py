@@ -61,14 +61,17 @@ class ImageRestorationDataset(Dataset):
         self.files = all_files[split_idx:] if is_val else all_files[:split_idx]
 
         self.preload_to_ram = preload_to_ram
-        self.noisy_cache = []
-        self.gt_cache = []
 
         if self.preload_to_ram:
             from tqdm import tqdm
             split_name = "Validation" if is_val else "Training"
             print(f"⚡ Preloading {len(self.files)} {split_name} images into RAM...")
-            for f in tqdm(self.files, desc=f"Loading {split_name}"):
+            
+            # Pre-allocate contiguous tensors to avoid Python list fragmentation overhead
+            self.gt_cache = torch.zeros((len(self.files), 1, 128, 128), dtype=torch.float32)
+            self.noisy_cache = torch.zeros((len(self.files), 1, 128, 128), dtype=torch.float32)
+
+            for idx, f in enumerate(tqdm(self.files, desc=f"Loading {split_name}")):
                 gt_arr = np.load(os.path.join(self.gt_dir, f))
                 noisy_arr = np.load(os.path.join(self.noisy_dir, f))
 
@@ -79,9 +82,13 @@ class ImageRestorationDataset(Dataset):
                 gt_t, gt_min, gt_max = normalize_image(gt_t)
                 noisy_t, _, _ = normalize_image(noisy_t, min_val=gt_min, max_val=gt_max)
 
-                self.gt_cache.append(gt_t)
-                self.noisy_cache.append(noisy_t)
+                self.gt_cache[idx] = gt_t
+                self.noisy_cache[idx] = noisy_t
+                
             print(f"✓ {split_name} set cached in RAM!")
+        else:
+            self.noisy_cache = None
+            self.gt_cache = None
 
     def __len__(self):
         return len(self.files)
