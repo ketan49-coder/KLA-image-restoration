@@ -104,30 +104,35 @@ def save_smart_checkpoint(model, optimizer, scheduler, scorer, epoch, train_loss
         'timestamp': timestamp,
     }
 
+    def _atomic_save(state, path):
+        tmp_path = path + ".tmp"
+        torch.save(state, tmp_path)
+        os.replace(tmp_path, path)
+
     # 1. Save LATEST checkpoint
     latest_local = os.path.join('checkpoints', f'{prefix}_latest.pth')
-    torch.save(checkpoint_data, latest_local)
+    _atomic_save(checkpoint_data, latest_local)
 
     if use_drive:
         latest_drive = os.path.join(DRIVE_CHECKPOINTS_DIR, f'{prefix}_latest.pth')
-        torch.save(checkpoint_data, latest_drive)
+        _atomic_save(checkpoint_data, latest_drive)
 
     # 2. Save BEST checkpoint
     if is_best:
         best_local = os.path.join('checkpoints', f'{prefix}_best.pth')
-        torch.save(checkpoint_data, best_local)
+        _atomic_save(checkpoint_data, best_local)
         print(f"🌟 New BEST checkpoint saved! Val PSNR: {metrics_dict['psnr']:.4f} dB -> {best_local}")
         if use_drive:
             best_drive = os.path.join(DRIVE_CHECKPOINTS_DIR, f'{prefix}_best.pth')
-            torch.save(checkpoint_data, best_drive)
+            _atomic_save(checkpoint_data, best_drive)
 
     # 3. Optional: Save specific epoch archive
     if save_all:
         epoch_local = os.path.join('checkpoints', f"{prefix}_epoch{epoch}_psnr{metrics_dict['psnr']:.2f}.pth")
-        torch.save(checkpoint_data, epoch_local)
+        _atomic_save(checkpoint_data, epoch_local)
         if use_drive:
             epoch_drive = os.path.join(DRIVE_CHECKPOINTS_DIR, f"{prefix}_epoch{epoch}_psnr{metrics_dict['psnr']:.2f}.pth")
-            torch.save(checkpoint_data, epoch_drive)
+            _atomic_save(checkpoint_data, epoch_drive)
 
 
 def evaluate_validation(model, val_loader, criterion, metric_evaluator, device):
@@ -318,6 +323,9 @@ def train(
 
             optimizer.zero_grad()
             output = model(noisy)
+            
+            # Fail-fast: ensure the architecture didn't output the wrong resolution
+            assert output.shape == gt.shape, f"Shape mismatch! Output: {output.shape} != GT: {gt.shape}"
 
             # The model naturally outputs the 2x upscaled image via PixelShuffle.
             # No manual bilinear interpolation needed here anymore.
