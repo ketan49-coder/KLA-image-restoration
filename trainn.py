@@ -102,6 +102,10 @@ def save_smart_checkpoint(model, optimizer, scheduler, scorer, epoch, train_loss
         'architecture': model_name,
         'loss_config': loss_name,
         'timestamp': timestamp,
+        'torch_rng_state': torch.get_rng_state(),
+        'torch_cuda_rng_state': torch.cuda.get_rng_state() if torch.cuda.is_available() else None,
+        'np_rng_state': np.random.get_state(),
+        'random_rng_state': random.getstate(),
     }
 
     def _atomic_save(state, path):
@@ -301,6 +305,17 @@ def train(
                 print("✓ Composite Scorer state restored")
             except Exception as e:
                 print(f"⚠ Could not restore scorer: {e}")
+                
+        # Restore RNG states for perfect determinism across resumes
+        if isinstance(checkpoint, dict):
+            if 'torch_rng_state' in checkpoint:
+                torch.set_rng_state(checkpoint['torch_rng_state'])
+            if 'torch_cuda_rng_state' in checkpoint and checkpoint['torch_cuda_rng_state'] is not None and torch.cuda.is_available():
+                torch.cuda.set_rng_state(checkpoint['torch_cuda_rng_state'])
+            if 'np_rng_state' in checkpoint:
+                np.random.set_state(checkpoint['np_rng_state'])
+            if 'random_rng_state' in checkpoint:
+                random.setstate(checkpoint['random_rng_state'])
 
         start_epoch = checkpoint.get('epoch', 0) if isinstance(checkpoint, dict) else 0
         # Look for explicit best_val_psnr first, fallback to val_psnr if old checkpoint
