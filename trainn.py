@@ -196,7 +196,8 @@ def train(
     preload_ram=True,
     save_all_epochs=False,
     base_channels=32,
-    packed_data=None
+    packed_data=None,
+    fp16=False
 ):
     # Hardcoded Champion Configuration
     model_type = "nafnet"
@@ -253,8 +254,11 @@ def train(
     # 4. Loss Function via Factory (Hardcoded to QuadFidelity)
     criterion = get_loss_function(loss_type).to(device)
 
-    # 5. Optimizer & Scheduler
+    # 5. Optimizer, Scheduler, & FP16 Scaler
     optimizer = optim.Adam(model.parameters(), lr=lr)
+    scaler = torch.cuda.amp.GradScaler(enabled=fp16)
+    if fp16:
+        print("⚡ FP16 Mixed Precision: ENABLED")
 
     scheduler = None
     if scheduler_type == "plateau":
@@ -317,7 +321,7 @@ def train(
         best_score_str = f" | Best Score: {scorer.best_score:.4f}" if scorer.best_score != -float('inf') else ""
         print(f"✓ Resumed from Epoch {start_epoch} (Prior Best Val PSNR: {best_val_psnr:.4f} dB{best_score_str})\n")
 
-    total_epochs = start_epoch + epochs
+    total_epochs = epochs
     print(f"⚡ Ready! Training on {len(train_dataset)} images, Validating on {len(val_dataset)} images (Epochs {start_epoch + 1} to {total_epochs})...\n")
 
     # 7. Training Loop
@@ -329,17 +333,18 @@ def train(
             noisy, gt = noisy.to(device), gt.to(device)
 
             optimizer.zero_grad()
-            output = model(noisy)
             
-            # Fail-fast: ensure the architecture didn't output the wrong resolution
-            assert output.shape == gt.shape, f"Shape mismatch! Output: {output.shape} != GT: {gt.shape}"
+            with torch.autocast(device_type=device.type, dtype=torch.float16, enabled=fp16):
+                output = model(noisy)
+                # Fail-fast: ensure the architecture didn't output the wrong resolution
+                assert output.shape == gt.shape, f"Shape mismatch! Output: {output.shape} != GT: {gt.shape}"
+                loss = criterion(output, gt)
 
-            # The model naturally outputs the 2x upscaled image via PixelShuffle.
-            # No manual bilinear interpolation needed here anymore.
-            loss = criterion(output, gt)
-            loss.backward()
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            optimizer.step()
+            scaler.step(optimizer)
+            scaler.update()
 
             train_loss += loss.item()
 
@@ -431,6 +436,7 @@ if __name__ == '__main__':
     parser.add_argument("--save_all_epochs", action="store_true", help="Save separate .pth for every single epoch")
     parser.add_argument("--base_channels", type=int, default=32, help="Base channel count for NAFNet (default 32)")
     parser.add_argument("--packed_data", type=str, default=None, help="Path to packed .pt dataset file (created by pack_dataset.py). Skips slow .npy loading.")
+    parser.add_argument("--fp16", action="store_true", help="Enable FP16 mixed precision training for speed and memory efficiency")
     args = parser.parse_args()
 
     train(
@@ -447,5 +453,6 @@ if __name__ == '__main__':
         preload_ram=(not args.no_preload_ram),
         save_all_epochs=args.save_all_epochs,
         base_channels=args.base_channels,
-        packed_data=args.packed_data
+        packed_data=args.packed_data,
+        fp16=args.fp16
     )

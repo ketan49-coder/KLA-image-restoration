@@ -14,7 +14,7 @@ def run_visual_check(checkpoint_path=None, data_dir='train/train', output_path='
     print(f"Using device: {device}")
 
     # Load dataset
-    dataset = ImageRestorationDataset(data_dir=data_dir, split_ratio=1.0, is_val=False, preload_to_ram=False)
+    dataset = ImageRestorationDataset(data_dir=data_dir, split_ratio=0.9, is_val=True, preload_to_ram=False)
     loader = DataLoader(dataset, batch_size=1, shuffle=True)
     
     # Get a single sample

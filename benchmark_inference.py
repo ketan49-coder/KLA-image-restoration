@@ -12,7 +12,7 @@ N_WARMUP = 10              # untimed runs to let CUDA/cuDNN autotune kick in
 N_RUNS = 50                # timed runs, averaged for a stable estimate
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-MODELS_TO_TEST = ["symunet", "rrdb", "resrestorer", "ultra_unet"]
+MODELS_TO_TEST = ["nafnet"]
 
 
 def count_params(model):
@@ -20,7 +20,7 @@ def count_params(model):
 
 
 def benchmark_model(name, use_amp=False):
-    model = get_model(name).to(DEVICE)
+    model = get_model(name, in_channels=1, out_channels=1, base_channels=32).to(DEVICE)
     model.eval()
 
     dummy_input = torch.randn(BATCH_SIZE, IN_CHANNELS, INPUT_SIZE, INPUT_SIZE, device=DEVICE)
