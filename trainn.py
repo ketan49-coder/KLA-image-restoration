@@ -190,7 +190,8 @@ def train(
     w_charb=0.50,
     w_msssim=0.40,
     base_channels=64,
-    model_type="symunet"
+    model_type="symunet",
+    packed_data=None
 ):
     # Set seed
     set_seed(seed)
@@ -210,13 +211,15 @@ def train(
         data_dir=data_dir,
         split_ratio=0.9,
         is_val=False,
-        preload_to_ram=preload_ram
+        preload_to_ram=preload_ram,
+        packed_data_path=packed_data
     )
     val_dataset = ImageRestorationDataset(
         data_dir=data_dir,
         split_ratio=0.9,
         is_val=True,
-        preload_to_ram=preload_ram
+        preload_to_ram=preload_ram,
+        packed_data_path=packed_data
     )
 
     loader_kwargs = {
@@ -394,6 +397,7 @@ if __name__ == '__main__':
     parser.add_argument("--save_all_epochs", action="store_true", help="Save separate .pth for every single epoch")
     parser.add_argument("--base_channels", type=int, default=64, help="Base channel count (default 64)")
     parser.add_argument("--model", type=str, default="symunet", choices=["symunet", "rrdb", "resrestorer", "ultra_unet"], help="Model architecture (symunet / rrdb / resrestorer / ultra_unet)")
+    parser.add_argument("--packed_data", type=str, default=None, help="Path to packed .pt dataset file (created by pack_dataset.py). Skips slow .npy loading.")
     args = parser.parse_args()
 
     train(
@@ -416,5 +420,6 @@ if __name__ == '__main__':
         w_charb=args.w_charb,
         w_msssim=args.w_msssim,
         base_channels=args.base_channels,
-        model_type=args.model
+        model_type=args.model,
+        packed_data=args.packed_data
     )

@@ -26,16 +26,60 @@ def denormalize_image(norm_tensor, min_val, max_val):
 
 
 class ImageRestorationDataset(Dataset):
-    def __init__(self, data_dir, split_ratio=0.9, is_val=False, split=None, preload_to_ram=False):
-        """
-        Dataset loader for KLA Image Restoration pairs (.npy).
-        Supports train/val splitting, auto-discovery of GT/NoisyLR directories,
-        and optional RAM preloading.
-        """
+    """
+    Dataset loader for KLA Image Restoration pairs (.npy or packed .pt).
+    Supports:
+      - Auto-discovery of GT/NoisyLR directories
+      - Train/val splitting
+      - Optional RAM preloading from .npy files
+      - FAST loading from a pre-packed .pt file (use pack_dataset.py to create)
+    """
+    def __init__(self, data_dir, split_ratio=0.9, is_val=False, split=None,
+                 preload_to_ram=False, packed_data_path=None):
         if split is not None:
             is_val = (split.lower() == 'val' or split.lower() == 'validation')
         self.is_val = is_val
 
+        # ============================================================
+        # FAST PATH: Load from a single packed .pt file (instant!)
+        # ============================================================
+        if packed_data_path and os.path.exists(packed_data_path):
+            split_name = "Validation" if is_val else "Training"
+            print(f"⚡ Loading {split_name} data from packed file: {packed_data_path}")
+            packed = torch.load(packed_data_path, map_location='cpu', weights_only=False)
+
+            all_gt = packed['gt']
+            all_noisy = packed['noisy']
+            all_files = packed['files']
+
+            split_idx = int(len(all_files) * split_ratio)
+            if is_val:
+                self.files = all_files[split_idx:]
+                gt_raw = all_gt[split_idx:]
+                noisy_raw = all_noisy[split_idx:]
+            else:
+                self.files = all_files[:split_idx]
+                gt_raw = all_gt[:split_idx]
+                noisy_raw = all_noisy[:split_idx]
+
+            # Apply GT-Anchored Normalization
+            self.gt_cache = []
+            self.noisy_cache = []
+            for i in range(len(self.files)):
+                gt_t, gt_min, gt_max = normalize_image(gt_raw[i])
+                noisy_t, _, _ = normalize_image(noisy_raw[i], min_val=gt_min, max_val=gt_max)
+                self.gt_cache.append(gt_t)
+                self.noisy_cache.append(noisy_t)
+
+            self.preload_to_ram = True  # Data is always in RAM when using packed
+            self.gt_dir = None
+            self.noisy_dir = None
+            print(f"✓ {split_name} set loaded! ({len(self.files)} images)")
+            return
+
+        # ============================================================
+        # STANDARD PATH: Load from .npy files on disk
+        # ============================================================
         # Auto-detect GT folder (ignoring __MACOSX zip artifacts)
         if os.path.exists(os.path.join(data_dir, 'GT')) and '__MACOSX' not in data_dir:
             self.gt_dir = os.path.join(data_dir, 'GT')
@@ -61,18 +105,14 @@ class ImageRestorationDataset(Dataset):
         self.files = all_files[split_idx:] if is_val else all_files[:split_idx]
 
         self.preload_to_ram = preload_to_ram
+        self.gt_cache = []
+        self.noisy_cache = []
 
         if self.preload_to_ram:
             from tqdm import tqdm
             split_name = "Validation" if is_val else "Training"
             print(f"⚡ Preloading {len(self.files)} {split_name} images into RAM...")
-            
-            # Use pre-allocated Python lists. This prevents list.append() memory 
-            # fragmentation while safely allowing for datasets with mixed resolutions.
-            self.gt_cache = [None] * len(self.files)
-            self.noisy_cache = [None] * len(self.files)
-
-            for idx, f in enumerate(tqdm(self.files, desc=f"Loading {split_name}")):
+            for f in tqdm(self.files, desc=f"Loading {split_name}"):
                 gt_arr = np.load(os.path.join(self.gt_dir, f))
                 noisy_arr = np.load(os.path.join(self.noisy_dir, f))
 
@@ -83,13 +123,9 @@ class ImageRestorationDataset(Dataset):
                 gt_t, gt_min, gt_max = normalize_image(gt_t)
                 noisy_t, _, _ = normalize_image(noisy_t, min_val=gt_min, max_val=gt_max)
 
-                self.gt_cache[idx] = gt_t
-                self.noisy_cache[idx] = noisy_t
-                
+                self.gt_cache.append(gt_t)
+                self.noisy_cache.append(noisy_t)
             print(f"✓ {split_name} set cached in RAM!")
-        else:
-            self.noisy_cache = None
-            self.gt_cache = None
 
     def __len__(self):
         return len(self.files)
@@ -130,4 +166,4 @@ class ImageRestorationDataset(Dataset):
         return noisy, gt
 
 # Alias for backwards compatibility
-RestorationDataset = ImageRestorationDataset
+RestorationDataset = ImageRestorationDataset
