@@ -72,18 +72,19 @@ def log_experiment_to_md(stage, run_number, epoch, loss_name, train_loss, val_lo
         f.write(f"| {timestamp} | {stage} | {run_number} | {epoch} | {loss_name} | {train_loss:.4f} | {val_loss:.4f} | {metrics_dict['psnr']:.4f} | {metrics_dict['ssim']:.4f} | {lpips_str} | {lr:.6f} | {best_marker} |\n")
 
 
-def save_smart_checkpoint(model, optimizer, scheduler, epoch, train_loss, val_loss, metrics_dict, is_best, stage="stage_2", run_number=1, loss_name="l1", use_drive=False, save_all=False):
+def save_smart_checkpoint(model, optimizer, scheduler, epoch, train_loss, val_loss, metrics_dict, is_best, best_val_psnr, model_name="symunet", stage="stage_2", run_number=1, loss_name="l1", use_drive=False, save_all=False):
     """
     Smart Checkpoint Manager:
-      - Always saves '{stage}_{loss_name}_latest.pth'
-      - Saves '{stage}_{loss_name}_best.pth' when highest Val PSNR is reached
+      - Always saves '{stage}_{model_name}_{loss_name}_run{run_number}_latest.pth'
+      - Saves '{stage}_{model_name}_{loss_name}_run{run_number}_best.pth' when highest Val PSNR is reached
       - Keeps Google Drive storage lean and prevents quota exhaustion.
     """
     os.makedirs('checkpoints', exist_ok=True)
     if use_drive:
         os.makedirs(DRIVE_CHECKPOINTS_DIR, exist_ok=True)
 
-    prefix = f"{stage}_{loss_name}_run{run_number}"
+    prefix = f"{stage}_{model_name}_{loss_name}_run{run_number}"
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     checkpoint_data = {
         'epoch': epoch,
@@ -92,13 +93,13 @@ def save_smart_checkpoint(model, optimizer, scheduler, epoch, train_loss, val_lo
         'scheduler_state_dict': scheduler.state_dict() if scheduler else None,
         'train_loss': train_loss,
         'val_loss': val_loss,
+        'best_val_psnr': best_val_psnr,
         'val_psnr': metrics_dict['psnr'],
         'val_ssim': metrics_dict['ssim'],
-        'val_lpips': metrics_dict.get('lpips'),
-        'loss_name': loss_name,
-        'stage': stage,
-        'run_number': run_number,
-        'timestamp': datetime.now().strftime("%Y%m%d_%H%M%S")
+        'val_lpips': metrics_dict['lpips'],
+        'architecture': model_name,
+        'loss_config': loss_name,
+        'timestamp': timestamp,
     }
 
     # 1. Save LATEST checkpoint
@@ -287,8 +288,9 @@ def train(
                 print(f"⚠ Could not restore scheduler: {e}")
 
         start_epoch = checkpoint.get('epoch', 0) if isinstance(checkpoint, dict) else 0
-        best_val_psnr = checkpoint.get('val_psnr', -float('inf')) if isinstance(checkpoint, dict) else -float('inf')
-        print(f"✓ Resumed from Epoch {start_epoch} (Prior Best Val PSNR: {best_val_psnr:.2f} dB)\n")
+        # Look for explicit best_val_psnr first, fallback to val_psnr if old checkpoint
+        best_val_psnr = checkpoint.get('best_val_psnr', checkpoint.get('val_psnr', -float('inf'))) if isinstance(checkpoint, dict) else -float('inf')
+        print(f"✓ Resumed from Epoch {start_epoch} (Prior Best Val PSNR: {best_val_psnr:.4f} dB)\n")
 
     total_epochs = start_epoch + epochs
     print(f"⚡ Ready! Training on {len(train_dataset)} images, Validating on {len(val_dataset)} images (Epochs {start_epoch + 1} to {total_epochs})...\n")
@@ -362,6 +364,8 @@ def train(
             val_loss=val_loss,
             metrics_dict=val_metrics,
             is_best=is_best,
+            best_val_psnr=best_val_psnr,
+            model_name=args.model,
             stage=stage,
             run_number=run_number,
             loss_name=loss_type,
