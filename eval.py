@@ -29,7 +29,7 @@ except ImportError:
     print("[WARNING] lpips package not installed. Run: pip install lpips")
     print("          LPIPS scores will be skipped.")
 
-from model import SymUNet, get_model
+from model import get_model
 from dataset import ImageRestorationDataset
 
 
@@ -47,10 +47,11 @@ def compute_metrics(pred, gt):
     return psnr_val, ssim_val
 
 
-def evaluate(checkpoint_path, data_dir, device=None, batch_size=1, is_val=True, model_type="symunet", base_channels=64):
+def evaluate(checkpoint_path, data_dir, device=None, batch_size=1, is_val=True, base_channels=32):
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
+    model_type = "nafnet"
     print(f"[INFO] Using device: {device} | Model: {model_type.upper()}")
 
     # ---- 1. Load model ----
@@ -141,8 +142,7 @@ if __name__ == "__main__":
     parser.add_argument("--data_dir", type=str, default="train/train", help="Path to dataset root (containing GT/NoisyLR)")
     parser.add_argument("--batch_size", type=int, default=1)
     parser.add_argument("--device", type=str, default=None)
-    parser.add_argument("--model", type=str, default="symunet", choices=["symunet", "rrdb", "resrestorer", "ultra_unet"], help="Model architecture (symunet / rrdb / resrestorer / ultra_unet)")
-    parser.add_argument("--base_channels", type=int, default=64, help="Base channel count (default: 64)")
+    parser.add_argument("--base_channels", type=int, default=32, help="Base channel count for NAFNet (default: 32)")
     args = parser.parse_args()
 
     evaluate(
@@ -150,6 +150,5 @@ if __name__ == "__main__":
         args.data_dir,
         device=args.device,
         batch_size=args.batch_size,
-        model_type=args.model,
         base_channels=args.base_channels
     )
