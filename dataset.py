@@ -67,15 +67,10 @@ class ImageRestorationDataset(Dataset):
             split_name = "Validation" if is_val else "Training"
             print(f"⚡ Preloading {len(self.files)} {split_name} images into RAM...")
             
-            # Read first images to dynamically get spatial dimensions for both GT and NoisyLR
-            gt_first = np.load(os.path.join(self.gt_dir, self.files[0]))
-            noisy_first = np.load(os.path.join(self.noisy_dir, self.files[0]))
-            H_gt, W_gt = gt_first.shape
-            H_noisy, W_noisy = noisy_first.shape
-            
-            # Pre-allocate contiguous tensors to avoid Python list fragmentation overhead
-            self.gt_cache = torch.zeros((len(self.files), 1, H_gt, W_gt), dtype=torch.float32)
-            self.noisy_cache = torch.zeros((len(self.files), 1, H_noisy, W_noisy), dtype=torch.float32)
+            # Use pre-allocated Python lists. This prevents list.append() memory 
+            # fragmentation while safely allowing for datasets with mixed resolutions.
+            self.gt_cache = [None] * len(self.files)
+            self.noisy_cache = [None] * len(self.files)
 
             for idx, f in enumerate(tqdm(self.files, desc=f"Loading {split_name}")):
                 gt_arr = np.load(os.path.join(self.gt_dir, f))
