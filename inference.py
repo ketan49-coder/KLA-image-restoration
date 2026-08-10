@@ -22,7 +22,50 @@ def normalize_image(img_tensor):
 def denormalize_image(norm_tensor, min_val, max_val):
     return (norm_tensor * (max_val - min_val + 1e-8)) + min_val
 
-def run_inference(input_dir, output_dir, checkpoint_path, device=None, model_type="symunet", base_channels=64, batch_size=8, use_fp16=True, use_compile=False):
+def _forward_pass(model, x, use_fp16, is_cuda):
+    if use_fp16 and is_cuda:
+        with torch.autocast(device_type='cuda', dtype=torch.float16):
+            return model(x).float()
+    return model(x)
+
+def forward_tta(model, x, use_fp16, is_cuda):
+    """8x Test-Time Augmentation (flips & 90-degree rotations)"""
+    outputs = []
+    
+    # 1. Original
+    outputs.append(_forward_pass(model, x, use_fp16, is_cuda))
+    
+    # 2. Flip H (dim 3)
+    out2 = _forward_pass(model, torch.flip(x, [3]), use_fp16, is_cuda)
+    outputs.append(torch.flip(out2, [3]))
+    
+    # 3. Flip V (dim 2)
+    out3 = _forward_pass(model, torch.flip(x, [2]), use_fp16, is_cuda)
+    outputs.append(torch.flip(out3, [2]))
+    
+    # 4. Flip H + V
+    out4 = _forward_pass(model, torch.flip(x, [2, 3]), use_fp16, is_cuda)
+    outputs.append(torch.flip(out4, [2, 3]))
+    
+    # 5. Transpose
+    out5 = _forward_pass(model, torch.transpose(x, 2, 3), use_fp16, is_cuda)
+    outputs.append(torch.transpose(out5, 2, 3))
+    
+    # 6. Transpose + Flip H
+    out6 = _forward_pass(model, torch.flip(torch.transpose(x, 2, 3), [3]), use_fp16, is_cuda)
+    outputs.append(torch.transpose(torch.flip(out6, [3]), 2, 3))
+    
+    # 7. Transpose + Flip V
+    out7 = _forward_pass(model, torch.flip(torch.transpose(x, 2, 3), [2]), use_fp16, is_cuda)
+    outputs.append(torch.transpose(torch.flip(out7, [2]), 2, 3))
+    
+    # 8. Transpose + Flip H + V
+    out8 = _forward_pass(model, torch.flip(torch.transpose(x, 2, 3), [2, 3]), use_fp16, is_cuda)
+    outputs.append(torch.transpose(torch.flip(out8, [2, 3]), 2, 3))
+    
+    return torch.mean(torch.stack(outputs), dim=0)
+
+def run_inference(input_dir, output_dir, checkpoint_path, device=None, model_type="symunet", base_channels=64, batch_size=8, use_fp16=True, use_compile=False, use_tta=True):
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
@@ -77,13 +120,11 @@ def run_inference(input_dir, output_dir, checkpoint_path, device=None, model_typ
             # Stack into a single batch tensor: (B, 1, H, W)
             batch_input = torch.cat(batch_tensors, dim=0).to(device)
             
-            # Forward pass with FP16 mixed precision (1.5-2x speedup on CUDA)
-            if use_fp16 and is_cuda:
-                with torch.autocast(device_type='cuda', dtype=torch.float16):
-                    batch_output = model(batch_input)
-                batch_output = batch_output.float()  # Cast back to FP32 for saving
+            # Forward pass (with optional 8x TTA)
+            if use_tta:
+                batch_output = forward_tta(model, batch_input, use_fp16, is_cuda)
             else:
-                batch_output = model(batch_input)
+                batch_output = _forward_pass(model, batch_input, use_fp16, is_cuda)
             
             # Denormalize and save each image
             batch_output = batch_output.cpu()
@@ -108,10 +149,11 @@ if __name__ == "__main__":
     parser.add_argument("--output_dir", type=str, required=True, help="Path to save restored .npy outputs")
     parser.add_argument("--checkpoint", type=str, required=True, help="Path to trained .pth model checkpoint")
     parser.add_argument("--device", type=str, default=None, help="Device to use (cuda/cpu)")
-    parser.add_argument("--model", type=str, default="symunet", choices=["symunet", "rrdb", "resrestorer", "ultra_unet"], help="Model architecture (symunet / rrdb / resrestorer / ultra_unet)")
+    parser.add_argument("--model", type=str, default="symunet", choices=["symunet", "rrdb", "resrestorer", "ultra_unet", "nafnet"], help="Model architecture (symunet / rrdb / resrestorer / ultra_unet / nafnet)")
     parser.add_argument("--base_channels", type=int, default=64, help="Base channel count (default: 64)")
     parser.add_argument("--batch_size", type=int, default=8, help="Inference batch size (default: 8)")
     parser.add_argument("--no_fp16", action="store_true", help="Disable FP16 mixed precision inference")
+    parser.add_argument("--no_tta", action="store_true", help="Disable 8x Test-Time Augmentation (TTA)")
     parser.add_argument("--compile", action="store_true", help="Enable torch.compile() graph optimization (PyTorch 2.0+)")
     
     args = parser.parse_args()
@@ -119,5 +161,5 @@ if __name__ == "__main__":
     run_inference(
         args.input_dir, args.output_dir, args.checkpoint,
         device=args.device, model_type=args.model, base_channels=args.base_channels,
-        batch_size=args.batch_size, use_fp16=not args.no_fp16, use_compile=args.compile
+        batch_size=args.batch_size, use_fp16=not args.no_fp16, use_compile=args.compile, use_tta=not args.no_tta
     )

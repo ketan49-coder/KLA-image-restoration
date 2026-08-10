@@ -1,131 +1,61 @@
-# KLA Image Restoration — SEMICON India Hackathon 2026
+# KLA Image Restoration Hackathon
 
-**Track 1 (KLA-sponsored): AI-Based Restoration of Degraded Semiconductor Inspection Images**
+This repository contains the inference and training pipeline for our 2x Super-Resolution Image Restoration model.
 
-**Team:** Ketan Shinde, Rikhil Vaswani, Aditya Jagtap  
+## 🚀 1. Setup Instructions
 
+The codebase is built on PyTorch and requires minimal dependencies.
 
----
-
-## Problem Statement
-
-KLA's semiconductor inspection tools face a fundamental trade-off between imaging speed and
-image quality — faster scans produce noisier, lower-resolution images, which can hide real
-defects. This project trains a deep learning model to reverse three types of image degradation
-simultaneously:
-
-1. **Speckle Noise** — grainy, multiplicative noise that can push pixel values beyond the
-   true image range.
-2. **Gaussian Noise / Blur** — softening of edges and fine structures.
-3. **Spatial Resolution Reduction** — downsampling (512→256 or 256→128) requiring
-   super-resolution to reverse.
-
-The model must handle all three degradations jointly (a single image may combine any/all of
-them), generalize to out-of-distribution test images, and run fast enough for practical
-inspection-line throughput.
-
----
-
-## Approach
-
-We use a **U-Net convolutional neural network** with:
-- Symmetric encoder-decoder structure with skip connections
-- 4 encoder blocks with max pooling for downsampling
-- Bottleneck layer at 1024 channels
-- 4 decoder blocks with transposed convolutions for upsampling
-- Skip connections concatenating encoder and decoder features
-- Batch normalization and ReLU activations throughout
-
-**Loss function**: Combined L1 + MSE loss for training stability and quality.
-
-The U-Net architecture is well-suited for this image restoration task due to its proven effectiveness in medical imaging and ability to preserve spatial information through skip connections.
-
----
-
-## Project Structure
-
-```
-.
-├── dataset.py       # PyTorch Dataset/DataLoader for GT/NoisyLR .npy pairs
-├── model.py         # U-Net architecture implementation
-├── losses.py        # Combined L1 + MSE loss function
-├── trainn.py        # Training loop with optimizer and checkpointing
-├── eval.py          # Evaluation script: PSNR, SSIM, LPIPS, inference speed
-├── requirements.txt # Python dependencies
-└── README.md        # This file
-```
-
----
-
-## Setup
-
-### 1. Clone the repository
+### Installation
+Clone the repository and install the dependencies:
 ```bash
 git clone https://github.com/ketan49-coder/KLA-image-restoration.git
 cd KLA-image-restoration
-```
-
-### 2. Install dependencies
-```bash
 pip install -r requirements.txt
 ```
 
-### 3. Download the dataset
-The KLA-provided dataset is **not included in this repository** (too large for git).
-Download it from [KLA's dataset link — TODO: add actual link] and place it so the
-structure looks like:
+---
 
-```
-train/
-└── train/
-    ├── GT/          # 3200 ground-truth (clean, full-resolution) .npy images
-    └── NoisyLR/     # 3200 degraded (noisy, low-resolution) .npy images, matching filenames
+## ⚡ 2. Evaluation / Inference (Mandatory Requirement)
 
-Test_NoisyLR/
-└── NoisyLR/         # Test set degraded images
-```
+To run the standalone inference script exactly as required by the benchmarking team, use `inference.py`.
 
-### 4. Train the model
+The script accepts a folder of degraded `.npy` images, processes them through the model using **8x Test-Time Augmentation (TTA)** for maximum PSNR/SSIM, and saves the restored 256x256 `.npy` images to the output directory.
+
+### Inference Command
 ```bash
-python trainn.py
+python inference.py --input_dir /path/to/test/images --output_dir /path/to/output/folder --checkpoint /path/to/trained_model.pth --model symunet
 ```
-This will:
-- Train for 1 epoch on the dataset
-- Save model weights to `checkpoints/unet_model.pth`
-- Display loss progress every 100 batches
 
-### 5. Evaluate
+### Arguments:
+- `--input_dir`: Path to the directory containing degraded 128x128 images.
+- `--output_dir`: Path where the restored 256x256 images will be saved.
+- `--checkpoint`: Path to the `.pth` weights file (e.g., `best_model.pth`).
+- `--model`: The architecture used (e.g., `symunet`, `nafnet`, `ultraunet`). *(Note: Check the filename of the provided weights to see which architecture flag to use).*
+- `--no_tta`: *(Optional)* Pass this flag to disable the 8x Test-Time Augmentation if you wish to see the raw base speed (though TTA easily passes the 10-second rule on an H100).
+- `--no_fp16`: *(Optional)* Pass this flag to disable FP16 Mixed Precision inference.
+
+---
+
+## 🧠 3. Model Architecture & Training Details
+
+This repository implements multiple SOTA restoration architectures that were explicitly engineered to balance **Speed** (passing the 10-second penalty rule) and **Quality**:
+
+1. **NAFNet (Nonlinear Activation Free Network):** Achieves Transformer-level PSNR while retaining CNN inference speeds.
+2. **SymUNet:** An ultra-fast baseline utilizing Attention Gates.
+3. **UltraUNet:** A deep capacity network featuring an ASPP bottleneck.
+
+### The Quad-Fidelity Loss Function
+Our models were trained using a custom `QuadFidelityLoss` function designed specifically to eliminate the "high PSNR but blurry" failure mode. It combines four distinct penalties:
+1. **Charbonnier Loss:** Robust L1 for handling severe Speckle noise outliers without exploding gradients.
+2. **MS-SSIM Loss:** Enforces structural integrity and perceptually accurate textures.
+3. **Focal Frequency Loss:** Forces the network to learn both low and high-frequency details.
+4. **Edge Loss (Sobel):** Explicitly penalizes blurry boundaries.
+
+Furthermore, checkpoints were evaluated and selected using a custom `CompositeScorer` that weights PSNR (40%), SSIM (35%), and LPIPS (25%), guaranteeing the submitted model is visually and mathematically elite.
+
+### Reproducing the Training
+To reproduce our training pipeline from scratch:
 ```bash
-python eval.py --checkpoint checkpoints/unet_model.pth --data_dir ./train/train
+python trainn.py --data_dir /path/to/train --model nafnet --loss quad_fidelity --scheduler cosine --epochs 600
 ```
-This computes PSNR, SSIM, LPIPS metrics and inference speed.
-
----
-
-## Results
-
-*TODO: fill in once final training run is complete*
-
-| Metric | Value |
-|---|---|
-| PSNR | TBD |
-| SSIM | TBD |
-| LPIPS | TBD |
-| Avg. inference time | TBD ms/image |
-
----
-
-## References
-
-1. Patent US 12,511,720 — "Image denoising for examination of a semiconductor specimen"
-2. Zhao et al. — "Loss Functions for Image Restoration with Neural Networks" (arXiv:1511.08861)
-3. "Unleashing Degradation-Carrying Features in Symmetric U-Net: Simpler and Stronger
-   Baselines for All-in-One Image Restoration" (arXiv, Dec 2025)
-4. SAR image despeckling / ID-CNN — multiplicative noise handling via log-transform
-
----
-
-## Team
-
-- **Ketan Shinde** — 
-- **Aditya Jagtap** — 
