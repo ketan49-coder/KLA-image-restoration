@@ -396,7 +396,7 @@ if __name__ == '__main__':
     parser.add_argument("--no_preload_ram", action="store_true", help="Disable RAM dataset preloading")
     parser.add_argument("--save_all_epochs", action="store_true", help="Save separate .pth for every single epoch")
     parser.add_argument("--base_channels", type=int, default=64, help="Base channel count (default 64)")
-    parser.add_argument("--model", type=str, default="symunet", choices=["symunet", "rrdb", "resrestorer", "ultra_unet"], help="Model architecture (symunet / rrdb / resrestorer / ultra_unet)")
+    parser.add_argument("--model", type=str, default="symunet", choices=["symunet", "rrdb", "resrestorer", "ultra_unet", "nafnet"], help="Model architecture (symunet / rrdb / resrestorer / ultra_unet / nafnet)")
     parser.add_argument("--packed_data", type=str, default=None, help="Path to packed .pt dataset file (created by pack_dataset.py). Skips slow .npy loading.")
     args = parser.parse_args()
 
