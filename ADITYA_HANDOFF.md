@@ -31,27 +31,8 @@ Our `inference.py` script now has hardcoded 8x TTA. This means on Submission Day
 
 ---
 
-## 🎯 Your Mission (The Architecture Race)
+## 🎯 Next Steps
 
-Before we commit to the 1600-epoch run, we need to pick the winning architecture. 
-
-**I have already run SymUNet for 25 epochs.** It scored:
-- PSNR: 27.73 dB
-- SSIM: ~0.71
-
-**Your task:**
-Run the other two architectures for 25 epochs to see if they can beat SymUNet's composite score.
-
-1. **Run UltraUNet:**
-```bash
-python trainn.py --model ultra_unet --loss quad_fidelity --epochs 25
-```
-2. **Run NAFNet:**
-*(Note: NAFNet learns slowly, so it gets a 2x learning rate boost in this race)*
-```bash
-python trainn.py --model nafnet --loss quad_fidelity --epochs 25 --lr 0.002
-```
-
-Whichever of these three models (SymUNet, UltraUNet, or NAFNet) has the highest `CompositeScore` at the end of 25 epochs is crowned the Winner. **That is the model we will pass back and forth for 1600 epochs.**
+Make sure you run `git pull` (or `wget` the scripts) to get all these safety features into your Colab environment before your next training run. 
 
 Good luck!
