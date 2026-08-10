@@ -249,7 +249,71 @@ class CharbonnierCompoundLoss(nn.Module):
 
 
 # ====================================================================
-# 6. LOSS FACTORY
+# 6. EDGE LOSS (Sobel Filters)
+# ====================================================================
+class EdgeLoss(nn.Module):
+    """
+    Penalizes differences in image gradients (edges) using Sobel filters.
+    Forces the network to reconstruct sharp, high-frequency structures
+    instead of producing soft/hazy outputs.
+    """
+    def __init__(self, eps=1e-3):
+        super(EdgeLoss, self).__init__()
+        self.eps = eps
+        # Define Sobel kernels
+        k_x = torch.tensor([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]], dtype=torch.float32).view(1, 1, 3, 3)
+        k_y = torch.tensor([[-1, -2, -1], [0, 0, 0], [1, 2, 1]], dtype=torch.float32).view(1, 1, 3, 3)
+        self.register_buffer("weight_x", k_x)
+        self.register_buffer("weight_y", k_y)
+
+    def forward(self, pred, target):
+        # We assume 1-channel grayscale images for this challenge
+        pred_grad_x = F.conv2d(pred, self.weight_x, padding=1)
+        pred_grad_y = F.conv2d(pred, self.weight_y, padding=1)
+        target_grad_x = F.conv2d(target, self.weight_x, padding=1)
+        target_grad_y = F.conv2d(target, self.weight_y, padding=1)
+
+        diff_x = pred_grad_x - target_grad_x
+        diff_y = pred_grad_y - target_grad_y
+        
+        # Charbonnier penalty on gradients for robustness against noise spikes
+        loss_x = torch.mean(torch.sqrt((diff_x * diff_x) + (self.eps * self.eps)))
+        loss_y = torch.mean(torch.sqrt((diff_y * diff_y) + (self.eps * self.eps)))
+        return loss_x + loss_y
+
+# ====================================================================
+# 7. QUAD-FIDELITY LOSS (Hackathon Maximizer)
+# ====================================================================
+class QuadFidelityLoss(nn.Module):
+    """
+    The ultimate 4-pillar loss function designed specifically for the KLA Hackathon:
+        1. Charbonnier (0.45): Direct, noise-robust PSNR optimization.
+        2. MS-SSIM (0.35): Multi-scale structural similarity (human perception).
+        3. Focal Frequency Loss (0.10): Spectrum matching.
+        4. Edge Loss (0.10): Explicit edge sharpness constraint.
+    """
+    def __init__(self, w_charb=0.45, w_msssim=0.35, w_gfl=0.10, w_edge=0.10, eps=1e-3):
+        super(QuadFidelityLoss, self).__init__()
+        self.w_charb = w_charb
+        self.w_msssim = w_msssim
+        self.w_gfl = w_gfl
+        self.w_edge = w_edge
+
+        self.charbonnier = CharbonnierLoss(eps=eps)
+        self.ms_ssim = ExactMSSSIMLoss(window_size=3)
+        self.gfl = FocalFrequencyLoss(gamma=1.0, eps=eps)
+        self.edge = EdgeLoss(eps=eps)
+
+    def forward(self, pred, target):
+        loss_c = self.charbonnier(pred, target)
+        loss_s = self.ms_ssim(pred, target)
+        loss_g = self.gfl(pred, target)
+        loss_e = self.edge(pred, target)
+        return (self.w_charb * loss_c) + (self.w_msssim * loss_s) + (self.w_gfl * loss_g) + (self.w_edge * loss_e)
+
+
+# ====================================================================
+# 8. LOSS FACTORY
 # ====================================================================
 def get_loss_function(name="charb_compound", alpha=0.90, w_gfl=0.10, alpha_zhao=None, w_charb=0.50, w_msssim=0.40, **kwargs):
     """
@@ -258,7 +322,9 @@ def get_loss_function(name="charb_compound", alpha=0.90, w_gfl=0.10, alpha_zhao=
     if alpha_zhao is not None:
         alpha = alpha_zhao
     name = (name or "charb_compound").lower()
-    if name in ["charb_compound", "charbonnier_compound", "tri_compound", "hybrid"]:
+    if name in ["quad_fidelity", "quad", "hackathon_loss"]:
+        return QuadFidelityLoss(w_charb=0.45, w_msssim=0.35, w_gfl=0.10, w_edge=0.10)
+    elif name in ["charb_compound", "charbonnier_compound", "tri_compound", "hybrid"]:
         return CharbonnierCompoundLoss(w_charb=w_charb, w_msssim=w_msssim, w_gfl=w_gfl)
     elif name in ["charbonnier", "charb", "psnr_loss"]:
         return CharbonnierLoss(eps=1e-3)
