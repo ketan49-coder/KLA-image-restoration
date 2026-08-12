@@ -12,7 +12,8 @@ def normalize_image(img_tensor, min_val=None, max_val=None):
     If min_val and max_val are provided, uses those instead of computing them from the tensor.
     """
     if min_val is None or max_val is None:
-        flat = img_tensor.contiguous().view(-1)
+        # Downsample by 4x4 for massive speedup on CPU quantile calculation
+        flat = img_tensor[..., ::4, ::4].contiguous().view(-1)
     if min_val is None:
         min_val = torch.quantile(flat, 0.01).item()
     if max_val is None:
