@@ -352,7 +352,9 @@ def train(
                 output = model(noisy)
                 # Fail-fast: ensure the architecture didn't output the wrong resolution
                 assert output.shape == gt.shape, f"Shape mismatch! Output: {output.shape} != GT: {gt.shape}"
-                loss = criterion(output, gt)
+                
+            # Compute loss in FP32 to prevent NaN underflow/overflow (FP16 math instability)
+            loss = criterion(output.float(), gt.float())
 
             scaler.scale(loss).backward()
             scaler.unscale_(optimizer)
