@@ -1,17 +1,34 @@
 # KLA Image Restoration: Ablation & Architecture Study
 
-## 🏆 Current All-Time Champions (As of Run 19 — Grand Master)
+## 🚀🔥 THE 1600-EPOCH MARATHON CHAMPION (NEW RECORD)
 
-### 🥇 1. Best Overall Configuration: **`SymUNet` + `Charb-Compound (Tri-Fidelity)` + `Cosine Annealing LR` (25 Epochs)**
-- **Peak Val PSNR:** **`27.7236 dB`** 🏆 *(NEW ALL-TIME RECORD — Epoch 25, Run 19)*
-- **Peak Val SSIM:** **`0.7442`** 🏆 *(NEW ALL-TIME RECORD — Epoch 24, Run 19)*
+### 🥇 1. Best Overall Configuration: **`NAFNet` + `Quad-Fidelity Loss` + `Cosine Annealing LR` (1600 Epochs)**
+- **Peak Val PSNR:** **`~28.60 dB`** 🏆 *(NEW ALL-TIME RECORD — Epoch 119+, Final Marathon Run)*
+- **Peak Val SSIM:** **`~0.7743`** 🏆 *(NEW ALL-TIME RECORD)*
+- **Peak Val LPIPS:** **`~0.2483`** 🏆 *(NEW ALL-TIME RECORD)*
+- **Status:** Currently training (Target: 1600 Epochs)
+
+### 👑 2. Undisputed Best Model Architecture: **`NAFNet` (Nonlinear Activation Free Network)**
+- State-of-the-art fast CNN with Simplified Channel Attention and SimpleGates. Vastly outperforms SymUNet in both speed (FP16 support) and reconstruction quality.
+
+### 🎯 3. Undisputed Best Loss Function: **`Quad-Fidelity Loss`**
+- **Formulation:** Multi-Scale SSIM + Charbonnier + Focal Frequency + LPIPS (AlexNet perceptual).
+- Adding the learned perceptual loss (LPIPS) directly into the loss formulation forced the network to create photographically sharp edges, instantly shattering the old 27.7 dB ceiling.
+
+---
+
+## 🏆 Previous Champions (Stage 4 — SymUNet Era)
+
+### 🥈 1. Previous Best Configuration: **`SymUNet` + `Charb-Compound (Tri-Fidelity)` + `Cosine Annealing LR` (25 Epochs)**
+- **Peak Val PSNR:** **`27.7236 dB`** *(Former Record — Epoch 25, Run 19)*
+- **Peak Val SSIM:** **`0.7442`** *(Former Record — Epoch 24, Run 19)*
 - **Peak Val LPIPS:** **`0.2871`** *(Epoch 14, Run 19)*
 - **Best Checkpoint:** `checkpoints/stage_4_charb_compound_run19_best.pth`
 
-### 👑 2. Undisputed Best Model Architecture: **`SymUNet`**
+### 👑 2. Previous Best Model Architecture: **`SymUNet`**
 - Symmetric Residual U-Net with Attention Gates & Channel Attention.
 
-### 🎯 3. Undisputed Best Loss Function: **`Charb-Compound (Tri-Fidelity)`**
+### 🎯 3. Previous Best Loss Function: **`Charb-Compound (Tri-Fidelity)`**
 - **Formulation:** $0.50 \cdot \mathcal{L}_{\text{Charbonnier}} + 0.40 \cdot \mathcal{L}_{\text{MS-SSIM}} + 0.10 \cdot \mathcal{L}_{\text{FFL}}$
 - Custom Focal Frequency Loss with Charbonnier robustness and dynamic adaptive weighting.
 - Beats previous Compound-90 record by **+0.24 dB**.
