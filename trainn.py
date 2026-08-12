@@ -305,13 +305,27 @@ def train(
         # Restore RNG states for perfect determinism across resumes
         if isinstance(checkpoint, dict):
             if 'torch_rng_state' in checkpoint:
-                torch.set_rng_state(checkpoint['torch_rng_state'])
+                try:
+                    state = checkpoint['torch_rng_state']
+                    torch.set_rng_state(state.cpu().byte() if isinstance(state, torch.Tensor) else torch.tensor(state, dtype=torch.uint8))
+                except Exception as e:
+                    print(f"⚠ Could not restore torch_rng_state: {e}")
             if 'torch_cuda_rng_state' in checkpoint and checkpoint['torch_cuda_rng_state'] is not None and torch.cuda.is_available():
-                torch.cuda.set_rng_state(checkpoint['torch_cuda_rng_state'])
+                try:
+                    state = checkpoint['torch_cuda_rng_state']
+                    torch.cuda.set_rng_state(state.cpu().byte() if isinstance(state, torch.Tensor) else torch.tensor(state, dtype=torch.uint8))
+                except Exception as e:
+                    print(f"⚠ Could not restore torch_cuda_rng_state: {e}")
             if 'np_rng_state' in checkpoint:
-                np.random.set_state(checkpoint['np_rng_state'])
+                try:
+                    np.random.set_state(checkpoint['np_rng_state'])
+                except Exception as e:
+                    print(f"⚠ Could not restore np_rng_state: {e}")
             if 'random_rng_state' in checkpoint:
-                random.setstate(checkpoint['random_rng_state'])
+                try:
+                    random.setstate(checkpoint['random_rng_state'])
+                except Exception as e:
+                    print(f"⚠ Could not restore random_rng_state: {e}")
 
         start_epoch = checkpoint.get('epoch', 0) if isinstance(checkpoint, dict) else 0
         # Look for explicit best_val_psnr first, fallback to val_psnr if old checkpoint
