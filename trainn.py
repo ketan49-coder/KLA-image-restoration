@@ -377,7 +377,9 @@ def train(
             best_val_psnr = val_metrics['psnr']
 
         # Determine IS_BEST using the new CompositeScorer (combines PSNR, SSIM, and LPIPS)
-        val_lpips_val = val_metrics.get('lpips', 0.5) # Fallback if LPIPS missing
+        val_lpips_val = val_metrics.get('lpips')
+        if val_lpips_val is None:
+            val_lpips_val = 0.5  # Fallback if LPIPS missing or disabled
         is_best, composite_score, _ = scorer.is_new_best(
             psnr=val_metrics['psnr'],
             ssim=val_metrics['ssim'],
