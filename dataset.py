@@ -8,14 +8,18 @@ import random
 
 def normalize_image(img_tensor, min_val=None, max_val=None):
     """
-    Standard Min-Max normalization.
+    Robust Normalization using 1st and 99th percentiles to ignore speckle spikes.
     If min_val and max_val are provided, uses those instead of computing them from the tensor.
     """
+    if min_val is None or max_val is None:
+        flat = img_tensor.contiguous().view(-1)
     if min_val is None:
-        min_val = img_tensor.min()
+        min_val = torch.quantile(flat, 0.01).item()
     if max_val is None:
-        max_val = img_tensor.max()
-    return (img_tensor - min_val) / (max_val - min_val + 1e-8), min_val, max_val
+        max_val = torch.quantile(flat, 0.99).item()
+        
+    clipped = torch.clamp(img_tensor, min_val, max_val)
+    return (clipped - min_val) / (max_val - min_val + 1e-8), min_val, max_val
 
 
 def denormalize_image(norm_tensor, min_val, max_val):
@@ -62,12 +66,12 @@ class ImageRestorationDataset(Dataset):
                 gt_raw = all_gt[:split_idx]
                 noisy_raw = all_noisy[:split_idx]
 
-            # Apply GT-Anchored Normalization
+            # Apply Noisy-Anchored Normalization (MUST match inference)
             self.gt_cache = []
             self.noisy_cache = []
             for i in range(len(self.files)):
-                gt_t, gt_min, gt_max = normalize_image(gt_raw[i])
-                noisy_t, _, _ = normalize_image(noisy_raw[i], min_val=gt_min, max_val=gt_max)
+                noisy_t, noisy_min, noisy_max = normalize_image(noisy_raw[i])
+                gt_t, _, _ = normalize_image(gt_raw[i], min_val=noisy_min, max_val=noisy_max)
                 self.gt_cache.append(gt_t)
                 self.noisy_cache.append(noisy_t)
 
@@ -119,9 +123,9 @@ class ImageRestorationDataset(Dataset):
                 gt_t = torch.from_numpy(gt_arr).float().unsqueeze(0)
                 noisy_t = torch.from_numpy(noisy_arr).float().unsqueeze(0)
 
-                # GT-Anchored Normalization
-                gt_t, gt_min, gt_max = normalize_image(gt_t)
-                noisy_t, _, _ = normalize_image(noisy_t, min_val=gt_min, max_val=gt_max)
+                # Noisy-Anchored Normalization
+                noisy_t, noisy_min, noisy_max = normalize_image(noisy_t)
+                gt_t, _, _ = normalize_image(gt_t, min_val=noisy_min, max_val=noisy_max)
 
                 self.gt_cache.append(gt_t)
                 self.noisy_cache.append(noisy_t)
@@ -142,9 +146,9 @@ class ImageRestorationDataset(Dataset):
             gt = torch.from_numpy(gt).float().unsqueeze(0)
             noisy = torch.from_numpy(noisy).float().unsqueeze(0)
 
-            # GT-Anchored Normalization
-            gt, gt_min, gt_max = normalize_image(gt)
-            noisy, _, _ = normalize_image(noisy, min_val=gt_min, max_val=gt_max)
+            # Noisy-Anchored Normalization
+            noisy, noisy_min, noisy_max = normalize_image(noisy)
+            gt, _, _ = normalize_image(gt, min_val=noisy_min, max_val=noisy_max)
 
         if not self.is_val:
             # Random horizontal flip

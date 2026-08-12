@@ -5,19 +5,20 @@ import numpy as np
 import torch
 from model import get_model
 
-def normalize_image(img_tensor):
+def normalize_image(img_tensor, min_val=None, max_val=None):
     """
     Robust Normalization using 1st and 99th percentiles to ignore speckle spikes.
+    If min_val and max_val are provided, uses those instead of computing them from the tensor.
     """
-    # Flatten tensor to calculate quantiles
-    flat = img_tensor.contiguous().view(-1)
-    min_val = torch.quantile(flat, 0.01).item()
-    max_val = torch.quantile(flat, 0.99).item()
-    
-    # Clip and normalize
+    if min_val is None or max_val is None:
+        flat = img_tensor.contiguous().view(-1)
+    if min_val is None:
+        min_val = torch.quantile(flat, 0.01).item()
+    if max_val is None:
+        max_val = torch.quantile(flat, 0.99).item()
+        
     clipped = torch.clamp(img_tensor, min_val, max_val)
-    norm_tensor = (clipped - min_val) / (max_val - min_val + 1e-8)
-    return norm_tensor, min_val, max_val
+    return (clipped - min_val) / (max_val - min_val + 1e-8), min_val, max_val
 
 def denormalize_image(norm_tensor, min_val, max_val):
     return (norm_tensor * (max_val - min_val + 1e-8)) + min_val
