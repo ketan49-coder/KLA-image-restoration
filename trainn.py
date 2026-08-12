@@ -284,16 +284,17 @@ def train(
         if isinstance(checkpoint, dict) and 'optimizer_state_dict' in checkpoint:
             try:
                 optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-                print("✓ Optimizer state restored successfully")
+                # FORCE reset learning rate to prevent explosions when resuming
+                for param_group in optimizer.param_groups:
+                    param_group['lr'] = 0.0002
+                    param_group['initial_lr'] = 0.0002
+                print("✓ Optimizer state restored and LR safely reset to 0.0002")
             except Exception as e:
                 print(f"⚠ Could not restore optimizer: {e}")
 
-        if scheduler and isinstance(checkpoint, dict) and checkpoint.get('scheduler_state_dict'):
-            try:
-                scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-                print("✓ Scheduler state restored")
-            except Exception as e:
-                print(f"⚠ Could not restore scheduler: {e}")
+        # INTENTIONALLY IGNORE old scheduler state. The old schedule was bouncing back 
+        # up to maximum and destroying the PSNR. We will let it start fresh from 0.0002.
+        print("✓ Intentionally resetting scheduler to prevent LR explosion.")
                 
         if scorer and isinstance(checkpoint, dict) and checkpoint.get('scorer_state_dict'):
             try:
