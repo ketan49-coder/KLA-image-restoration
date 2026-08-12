@@ -46,6 +46,7 @@ def compute_ssim_components(img1, img2, window_size=11, sigma=1.5):
     Computes luminance (l) and contrast-structure (cs) maps separately.
     """
     window = get_gaussian_window_2d(window_size, img1.size(1), sigma=sigma, device=img1.device)
+    window = window.to(img1.dtype)
 
     mu1 = F.conv2d(img1, window, padding=window_size // 2, groups=img1.size(1))
     mu2 = F.conv2d(img2, window, padding=window_size // 2, groups=img2.size(1))
