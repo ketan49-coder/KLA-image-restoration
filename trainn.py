@@ -277,7 +277,7 @@ def train(
 
     if resume_path and os.path.exists(resume_path):
         print(f"\n📂 Resuming from Checkpoint: {resume_path}")
-        checkpoint = torch.load(resume_path, map_location=device)
+        checkpoint = torch.load(resume_path, map_location=device, weights_only=False)
 
         model.load_state_dict(checkpoint.get('model_state_dict', checkpoint))
 

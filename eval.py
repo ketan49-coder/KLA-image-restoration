@@ -56,7 +56,7 @@ def evaluate(checkpoint_path, data_dir, device=None, batch_size=1, is_val=True, 
 
     # ---- 1. Load model ----
     model = get_model(model_type, in_channels=1, out_channels=1, base_channels=base_channels).to(device)
-    checkpoint = torch.load(checkpoint_path, map_location=device)
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     state_dict = checkpoint.get("model_state_dict", checkpoint) if isinstance(checkpoint, dict) else checkpoint
     model.load_state_dict(state_dict)
     model.eval()

@@ -75,7 +75,7 @@ def run_inference(input_dir, output_dir, checkpoint_path, device=None, base_chan
 
     # ── 1. Load model to GPU ONCE ──────────────────────────────────
     model = get_model(model_type, in_channels=1, out_channels=1, base_channels=base_channels).to(device)
-    checkpoint = torch.load(checkpoint_path, map_location=device)
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
     state_dict = checkpoint.get("model_state_dict", checkpoint) if isinstance(checkpoint, dict) else checkpoint
     model.load_state_dict(state_dict)
     model.eval()  # BatchNorm uses running stats, Dropout disabled
