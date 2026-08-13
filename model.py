@@ -172,9 +172,27 @@ class NAFNet(nn.Module):
 # ====================================================================
 def get_model(name="nafnet", in_channels=1, out_channels=1, base_channels=32, num_blocks=None):
     """
-    Factory to retrieve the champion model cleanly.
-    Hardcoded to NAFNet for the final submission run.
+    Factory to retrieve the model.
+    Dynamically imports legacy architectures to keep the main pipeline clean.
     """
+    name = name.lower()
+    
+    if name == "symunet":
+        from legacy_models import SymUNet
+        return SymUNet(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            base_channels=64
+        )
+    elif name == "ultra_unet":
+        from legacy_models import UltraUNet
+        return UltraUNet(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            base_channels=96
+        )
+    
+    # Default Champion
     return NAFNet(
         in_channels=in_channels,
         out_channels=out_channels,

@@ -197,10 +197,10 @@ def train(
     save_all_epochs=False,
     base_channels=32,
     packed_data=None,
-    fp16=False
+    fp16=False,
+    model_type="nafnet"
 ):
     # Hardcoded Champion Configuration
-    model_type = "nafnet"
     loss_type = "quad_fidelity"
     scheduler_type = "cosine"
 
@@ -455,6 +455,8 @@ if __name__ == '__main__':
     parser.add_argument("--base_channels", type=int, default=32, help="Base channel count for NAFNet (default 32)")
     parser.add_argument("--packed_data", type=str, default=None, help="Path to packed .pt dataset file (created by pack_dataset.py). Skips slow .npy loading.")
     parser.add_argument("--fp16", action="store_true", help="Enable FP16 mixed precision training for speed and memory efficiency")
+    parser.add_argument("--model", type=str, default="nafnet", choices=["nafnet", "symunet", "ultra_unet"], help="Architecture to train")
+
     args = parser.parse_args()
 
     train(
@@ -472,5 +474,6 @@ if __name__ == '__main__':
         save_all_epochs=args.save_all_epochs,
         base_channels=args.base_channels,
         packed_data=args.packed_data,
-        fp16=args.fp16
+        fp16=args.fp16,
+        model_type=args.model
     )
