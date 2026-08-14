@@ -198,12 +198,10 @@ def train(
     base_channels=32,
     packed_data=None,
     fp16=False,
-    model_type="nafnet"
+    model_type="nafnet",
+    scheduler_type="cosine",
+    loss_type="quad_fidelity"
 ):
-    # Hardcoded Champion Configuration
-    loss_type = "quad_fidelity"
-    scheduler_type = "cosine"
-
     # Set seed
     set_seed(seed)
 
@@ -456,6 +454,8 @@ if __name__ == '__main__':
     parser.add_argument("--packed_data", type=str, default=None, help="Path to packed .pt dataset file (created by pack_dataset.py). Skips slow .npy loading.")
     parser.add_argument("--fp16", action="store_true", help="Enable FP16 mixed precision training for speed and memory efficiency")
     parser.add_argument("--model", type=str, default="nafnet", choices=["nafnet", "symunet", "ultra_unet"], help="Architecture to train")
+    parser.add_argument("--scheduler", type=str, default="cosine", choices=["cosine", "plateau", "none"], help="Learning rate scheduler strategy")
+    parser.add_argument("--loss", type=str, default="quad_fidelity", choices=["quad_fidelity", "compound", "charbonnier"], help="Loss function to use")
 
     args = parser.parse_args()
 
@@ -470,10 +470,12 @@ if __name__ == '__main__':
         resume_path=args.resume,
         seed=args.seed,
         num_workers=args.num_workers,
-        preload_ram=(not args.no_preload_ram),
+        preload_ram=not args.no_preload_ram,
         save_all_epochs=args.save_all_epochs,
         base_channels=args.base_channels,
         packed_data=args.packed_data,
         fp16=args.fp16,
-        model_type=args.model
+        model_type=args.model,
+        scheduler_type=args.scheduler,
+        loss_type=args.loss
     )
