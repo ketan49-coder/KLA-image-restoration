@@ -109,9 +109,13 @@ def save_smart_checkpoint(model, optimizer, scheduler, scorer, epoch, train_loss
     }
 
     def _atomic_save(state, path):
-        tmp_path = path + ".tmp"
-        torch.save(state, tmp_path)
-        os.replace(tmp_path, path)
+        if '/content/drive' in path:
+            # Direct save for Google Drive to bypass FUSE os.replace silent failures
+            torch.save(state, path)
+        else:
+            tmp_path = path + ".tmp"
+            torch.save(state, tmp_path)
+            os.replace(tmp_path, path)
 
     # 1. Save LATEST checkpoint
     latest_local = os.path.join('checkpoints', f'{prefix}_latest.pth')
