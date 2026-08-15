@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR
+from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR, CosineAnnealingWarmRestarts, SequentialLR
 
 from model import get_model
 from dataset import ImageRestorationDataset
@@ -265,6 +265,11 @@ def train(
     elif scheduler_type == "cosine":
         scheduler = CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-6)
         print(f"📈 Scheduler: CosineAnnealingLR (T_max={epochs}, eta_min=1e-6)")
+    elif scheduler_type == "hybrid":
+        sched1 = CosineAnnealingWarmRestarts(optimizer, T_0=400, eta_min=1e-6)
+        sched2 = CosineAnnealingLR(optimizer, T_max=max(1, epochs - 400), eta_min=1e-6)
+        scheduler = SequentialLR(optimizer, schedulers=[sched1, sched2], milestones=[400])
+        print(f"📈 Scheduler: Hybrid Sequential (SGDR 0-400 -> Cosine 401-{epochs})")
     else:
         print("📈 Scheduler: Fixed Learning Rate")
 
@@ -289,9 +294,17 @@ def train(
         if scheduler and isinstance(checkpoint, dict) and checkpoint.get('scheduler_state_dict'):
             try:
                 scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-                print("✓ Scheduler state restored (Resuming Cosine Curve)")
+                print("✓ Scheduler state restored")
             except Exception as e:
-                print(f"⚠ Could not restore scheduler: {e}")
+                start_ep = checkpoint.get('epoch', 0) if isinstance(checkpoint, dict) else 0
+                print(f"⚠ Could not restore scheduler (swapped types): {e}")
+                if start_ep > 0:
+                    print(f"  -> Fast-forwarding new scheduler to epoch {start_ep}...")
+                    import warnings
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        for _ in range(start_ep):
+                            scheduler.step()
                 
         if scorer and isinstance(checkpoint, dict) and checkpoint.get('scorer_state_dict'):
             try:
@@ -454,7 +467,7 @@ if __name__ == '__main__':
     parser.add_argument("--packed_data", type=str, default=None, help="Path to packed .pt dataset file (created by pack_dataset.py). Skips slow .npy loading.")
     parser.add_argument("--fp16", action="store_true", help="Enable FP16 mixed precision training for speed and memory efficiency")
     parser.add_argument("--model", type=str, default="nafnet", choices=["nafnet", "symunet", "ultra_unet"], help="Architecture to train")
-    parser.add_argument("--scheduler", type=str, default="cosine", choices=["cosine", "plateau", "none"], help="Learning rate scheduler strategy")
+    parser.add_argument("--scheduler", type=str, default="cosine", choices=["cosine", "plateau", "hybrid", "none"], help="Learning rate scheduler strategy")
     parser.add_argument("--loss", type=str, default="quad_fidelity", choices=["quad_fidelity", "compound", "charbonnier"], help="Loss function to use")
 
     args = parser.parse_args()
