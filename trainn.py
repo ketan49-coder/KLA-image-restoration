@@ -204,7 +204,8 @@ def train(
     fp16=False,
     model_type="nafnet",
     scheduler_type="cosine",
-    loss_type="quad_fidelity"
+    loss_type="quad_fidelity",
+    alternating_loss=False
 ):
     # Set seed
     set_seed(seed)
@@ -253,8 +254,26 @@ def train(
     # 3. Metric Evaluator
     metric_evaluator = RestorationMetrics(device=device, compute_lpips=True)
 
-    # 4. Loss Function via Factory (Hardcoded to QuadFidelity)
+    # 4. Loss Function via Factory
     criterion = get_loss_function(loss_type).to(device)
+
+    # Alternating Loss Schedule ("Squeeze & Sharpen" Strategy)
+    # Phase 1 (0-599):  QuadFidelity  -> Learn sharp structural skeleton
+    # Phase 2 (600-799): Charbonnier  -> Polish pixels, maximize raw PSNR
+    # Phase 3 (800+):   QuadFidelity  -> Re-sharpen from high PSNR base
+    alt_loss_phases = None
+    if alternating_loss:
+        alt_criterion_quad = get_loss_function('quad_fidelity').to(device)
+        alt_criterion_charb = get_loss_function('charbonnier').to(device)
+        alt_loss_phases = [
+            (0,   599, alt_criterion_quad,  'quad_fidelity', 0.0005),
+            (600, 799, alt_criterion_charb, 'charbonnier',   0.0003),
+            (800, 9999, alt_criterion_quad, 'quad_fidelity', 0.0002),
+        ]
+        print("🔄 ALTERNATING LOSS ENABLED:")
+        print("   Phase 1 (Ep 0-599):  QuadFidelity  | LR: 0.0005")
+        print("   Phase 2 (Ep 600-799): Charbonnier  | LR: 0.0003")
+        print("   Phase 3 (Ep 800+):    QuadFidelity  | LR: 0.0002")
 
     # 5. Optimizer, Scheduler, & FP16 Scaler
     optimizer = optim.Adam(model.parameters(), lr=lr)
@@ -354,9 +373,28 @@ def train(
     print(f"⚡ Ready! Training on {len(train_dataset)} images, Validating on {len(val_dataset)} images (Epochs {start_epoch + 1} to {total_epochs})...\n")
 
     # 7. Training Loop
+    _prev_phase_name = None  # Track phase transitions for alternating loss
     for epoch in range(start_epoch, total_epochs):
         model.train()
         train_loss = 0.0
+
+        # --- Alternating Loss: auto-switch criterion & LR at phase boundaries ---
+        if alt_loss_phases is not None:
+            for phase_start, phase_end, phase_criterion, phase_name, phase_lr in alt_loss_phases:
+                if phase_start <= epoch <= phase_end:
+                    criterion = phase_criterion
+                    loss_type_active = phase_name
+                    if _prev_phase_name != phase_name:
+                        # Phase transition detected! Reset LR for the new phase.
+                        for pg in optimizer.param_groups:
+                            pg['lr'] = phase_lr
+                        print(f"\n🔄 === PHASE SWITCH at Epoch {epoch+1} ===")
+                        print(f"   Loss: {phase_name.upper()} | LR reset to: {phase_lr}")
+                        print(f"   ================================================\n")
+                        _prev_phase_name = phase_name
+                    break
+        else:
+            loss_type_active = loss_type
 
         for batch_idx, (noisy, gt) in enumerate(train_loader):
             noisy, gt = noisy.to(device), gt.to(device)
@@ -421,7 +459,7 @@ def train(
             stage=stage,
             run_number=run_number,
             epoch=epoch+1,
-            loss_name=loss_type,
+            loss_name=loss_type_active if alt_loss_phases else loss_type,
             train_loss=avg_train_loss,
             val_loss=val_loss,
             metrics_dict=val_metrics,
@@ -429,7 +467,7 @@ def train(
             is_best=is_best
         )
 
-        # Save Smart Checkpoint
+        # Save Smart Checkpoint (always use consistent loss_name for filename stability)
         save_smart_checkpoint(
             model=model,
             optimizer=optimizer,
@@ -473,6 +511,7 @@ if __name__ == '__main__':
     parser.add_argument("--model", type=str, default="nafnet", choices=["nafnet", "symunet", "ultra_unet"], help="Architecture to train")
     parser.add_argument("--scheduler", type=str, default="cosine", choices=["cosine", "plateau", "hybrid", "none"], help="Learning rate scheduler strategy")
     parser.add_argument("--loss", type=str, default="quad_fidelity", choices=["quad_fidelity", "compound", "charbonnier"], help="Loss function to use")
+    parser.add_argument("--alternating_loss", action="store_true", help="Enable alternating loss schedule: QuadFidelity(0-599) -> Charbonnier(600-799) -> QuadFidelity(800+)")
 
     args = parser.parse_args()
 
@@ -494,5 +533,6 @@ if __name__ == '__main__':
         fp16=args.fp16,
         model_type=args.model,
         scheduler_type=args.scheduler,
-        loss_type=args.loss
+        loss_type=args.loss,
+        alternating_loss=args.alternating_loss
     )
