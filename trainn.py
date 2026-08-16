@@ -267,13 +267,13 @@ def train(
         alt_criterion_charb = get_loss_function('charbonnier').to(device)
         alt_loss_phases = [
             (0,   599, alt_criterion_quad,  'quad_phase1', 0.0005),
-            (600, 799, alt_criterion_charb, 'charb_phase2', 0.0003),
-            (800, 9999, alt_criterion_quad, 'quad_phase3', 0.0002),
+            (600, 999, alt_criterion_charb, 'charb_phase2', 0.0003),
+            (1000, 9999, alt_criterion_quad, 'quad_phase3', 0.0002),
         ]
         print("🔄 ALTERNATING LOSS ENABLED:")
-        print("   Phase 1 (Ep 0-599):  QuadFidelity  | LR: 0.0005")
-        print("   Phase 2 (Ep 600-799): Charbonnier  | LR: 0.0003")
-        print("   Phase 3 (Ep 800+):    QuadFidelity  | LR: 0.0002")
+        print("   Phase 1 (Ep 0-599):    QuadFidelity  | LR: 0.0005")
+        print("   Phase 2 (Ep 600-999):  Charbonnier   | LR: 0.0003")
+        print("   Phase 3 (Ep 1000+):    QuadFidelity  | LR: 0.0002")
 
     # 5. Optimizer, Scheduler, & FP16 Scaler
     optimizer = optim.Adam(model.parameters(), lr=lr)
