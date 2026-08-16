@@ -385,11 +385,13 @@ def train(
                     criterion = phase_criterion
                     loss_type_active = phase_name
                     if _prev_phase_name != phase_name:
-                        # Phase transition detected!
-                        # 1. Reset optimizer LR base
+                        # 1. Reset optimizer LR base and clear momentum buffers (prevent gradient shock!)
                         for pg in optimizer.param_groups:
                             pg['initial_lr'] = phase_lr
                             pg['lr'] = phase_lr
+                        
+                        # Clear momentum from previous phase so it doesn't bleed into new loss landscape
+                        optimizer.state.clear()
                         
                         # 2. Recreate Scheduler perfectly scoped to this phase's duration
                         phase_duration = (phase_end - phase_start) + 1
