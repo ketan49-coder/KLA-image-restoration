@@ -266,9 +266,9 @@ def train(
         alt_criterion_quad = get_loss_function('quad_fidelity').to(device)
         alt_criterion_charb = get_loss_function('charbonnier').to(device)
         alt_loss_phases = [
-            (0,   599, alt_criterion_quad,  'quad_fidelity', 0.0005),
-            (600, 799, alt_criterion_charb, 'charbonnier',   0.0003),
-            (800, 9999, alt_criterion_quad, 'quad_fidelity', 0.0002),
+            (0,   599, alt_criterion_quad,  'quad_phase1', 0.0005),
+            (600, 799, alt_criterion_charb, 'charb_phase2', 0.0003),
+            (800, 9999, alt_criterion_quad, 'quad_phase3', 0.0002),
         ]
         print("🔄 ALTERNATING LOSS ENABLED:")
         print("   Phase 1 (Ep 0-599):  QuadFidelity  | LR: 0.0005")
@@ -385,11 +385,27 @@ def train(
                     criterion = phase_criterion
                     loss_type_active = phase_name
                     if _prev_phase_name != phase_name:
-                        # Phase transition detected! Reset LR for the new phase.
+                        # Phase transition detected!
+                        # 1. Reset optimizer LR base
                         for pg in optimizer.param_groups:
+                            pg['initial_lr'] = phase_lr
                             pg['lr'] = phase_lr
+                        
+                        # 2. Recreate Scheduler perfectly scoped to this phase's duration
+                        phase_duration = (phase_end - phase_start) + 1
+                        steps_into_phase = epoch - phase_start
+                        scheduler = CosineAnnealingLR(optimizer, T_max=phase_duration, eta_min=1e-6)
+                        
+                        # Fast-forward scheduler if resuming mid-phase
+                        import warnings
+                        with warnings.catch_warnings():
+                            warnings.simplefilter("ignore")
+                            for _ in range(steps_into_phase):
+                                scheduler.step()
+
                         print(f"\n🔄 === PHASE SWITCH at Epoch {epoch+1} ===")
-                        print(f"   Loss: {phase_name.upper()} | LR reset to: {phase_lr}")
+                        print(f"   Loss: {phase_name.upper()} | Base LR: {phase_lr}")
+                        print(f"   Phase Duration: {phase_duration} epochs | Steps Elapsed: {steps_into_phase}")
                         print(f"   ================================================\n")
                         _prev_phase_name = phase_name
                     break
@@ -467,7 +483,7 @@ def train(
             is_best=is_best
         )
 
-        # Save Smart Checkpoint (always use consistent loss_name for filename stability)
+        # Save Smart Checkpoint (Use phase name if alternating, protects backups!)
         save_smart_checkpoint(
             model=model,
             optimizer=optimizer,
@@ -482,7 +498,7 @@ def train(
             model_name=model_type,
             stage=stage,
             run_number=run_number,
-            loss_name=loss_type,
+            loss_name=loss_type_active if alt_loss_phases else loss_type,
             use_drive=use_drive,
             save_all=save_all_epochs
         )
