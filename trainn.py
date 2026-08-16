@@ -89,7 +89,7 @@ def save_smart_checkpoint(model, optimizer, scheduler, scorer, epoch, train_loss
 
     checkpoint_data = {
         'epoch': epoch,
-        'model_state_dict': model.module.state_dict() if isinstance(model, torch.nn.DataParallel) else model.state_dict(),
+        'model_state_dict': model.state_dict(),
         'optimizer_state_dict': optimizer.state_dict(),
         'scheduler_state_dict': scheduler.state_dict() if scheduler else None,
         'scorer_state_dict': scorer.state_dict() if scorer else None,
@@ -249,10 +249,6 @@ def train(
 
     # 2. Model Setup via Factory
     model = get_model(model_type, in_channels=1, out_channels=1, base_channels=base_channels).to(device)
-    
-    if torch.cuda.device_count() > 1:
-        print(f"🔥 Let's GO! Using {torch.cuda.device_count()} GPUs with DataParallel!")
-        model = torch.nn.DataParallel(model)
 
     # 3. Metric Evaluator
     metric_evaluator = RestorationMetrics(device=device, compute_lpips=True)
