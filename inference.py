@@ -11,7 +11,7 @@ def normalize_image(img_tensor, min_val=None, max_val=None):
     If min_val and max_val are provided, uses those instead of computing them from the tensor.
     """
     if min_val is None or max_val is None:
-        # Downsample by 4x4 for massive speedup on CPU quantile calculation
+        # Downsample by 4x4 for massive speedup on quantile calculation
         flat = img_tensor[..., ::4, ::4].contiguous().view(-1)
     if min_val is None:
         min_val = torch.quantile(flat, 0.01).item()
@@ -31,41 +31,42 @@ def _forward_pass(model, x, use_fp16, is_cuda):
     return model(x)
 
 def forward_tta(model, x, use_fp16, is_cuda):
-    """8x Test-Time Augmentation (flips & 90-degree rotations)"""
-    outputs = []
+    """
+    Batched 8x Test-Time Augmentation (flips & 90-degree rotations).
+    All 8 augmentations are stacked into a SINGLE forward pass for maximum GPU throughput.
+    """
+    B, C, H, W = x.shape
     
-    # 1. Original
-    outputs.append(_forward_pass(model, x, use_fp16, is_cuda))
+    # Create all 8 augmented versions
+    x_flip_h  = torch.flip(x, [3])
+    x_flip_v  = torch.flip(x, [2])
+    x_flip_hv = torch.flip(x, [2, 3])
+    x_t       = torch.transpose(x, 2, 3)
+    x_t_fh    = torch.flip(x_t, [3])
+    x_t_fv    = torch.flip(x_t, [2])
+    x_t_fhv   = torch.flip(x_t, [2, 3])
     
-    # 2. Flip H (dim 3)
-    out2 = _forward_pass(model, torch.flip(x, [3]), use_fp16, is_cuda)
-    outputs.append(torch.flip(out2, [3]))
+    # Stack all 8 into a single mega-batch: (8*B, C, H, W)
+    mega_batch = torch.cat([x, x_flip_h, x_flip_v, x_flip_hv,
+                            x_t, x_t_fh, x_t_fv, x_t_fhv], dim=0)
     
-    # 3. Flip V (dim 2)
-    out3 = _forward_pass(model, torch.flip(x, [2]), use_fp16, is_cuda)
-    outputs.append(torch.flip(out3, [2]))
+    # ONE forward pass for all 8 augmentations
+    mega_output = _forward_pass(model, mega_batch, use_fp16, is_cuda)
     
-    # 4. Flip H + V
-    out4 = _forward_pass(model, torch.flip(x, [2, 3]), use_fp16, is_cuda)
-    outputs.append(torch.flip(out4, [2, 3]))
+    # Split back into 8 chunks of (B, C, H, W)
+    o1, o2, o3, o4, o5, o6, o7, o8 = torch.chunk(mega_output, 8, dim=0)
     
-    # 5. Transpose
-    out5 = _forward_pass(model, torch.transpose(x, 2, 3), use_fp16, is_cuda)
-    outputs.append(torch.transpose(out5, 2, 3))
+    # Un-augment each chunk back to original orientation
+    out1 = o1                                                    # Original
+    out2 = torch.flip(o2, [3])                                   # Undo flip H
+    out3 = torch.flip(o3, [2])                                   # Undo flip V
+    out4 = torch.flip(o4, [2, 3])                                # Undo flip HV
+    out5 = torch.transpose(o5, 2, 3)                             # Undo transpose
+    out6 = torch.transpose(torch.flip(o6, [3]), 2, 3)            # Undo transpose + flip H
+    out7 = torch.transpose(torch.flip(o7, [2]), 2, 3)            # Undo transpose + flip V
+    out8 = torch.transpose(torch.flip(o8, [2, 3]), 2, 3)         # Undo transpose + flip HV
     
-    # 6. Transpose + Flip H
-    out6 = _forward_pass(model, torch.flip(torch.transpose(x, 2, 3), [3]), use_fp16, is_cuda)
-    outputs.append(torch.transpose(torch.flip(out6, [3]), 2, 3))
-    
-    # 7. Transpose + Flip V
-    out7 = _forward_pass(model, torch.flip(torch.transpose(x, 2, 3), [2]), use_fp16, is_cuda)
-    outputs.append(torch.transpose(torch.flip(out7, [2]), 2, 3))
-    
-    # 8. Transpose + Flip H + V
-    out8 = _forward_pass(model, torch.flip(torch.transpose(x, 2, 3), [2, 3]), use_fp16, is_cuda)
-    outputs.append(torch.transpose(torch.flip(out8, [2, 3]), 2, 3))
-    
-    return torch.mean(torch.stack(outputs), dim=0)
+    return torch.mean(torch.stack([out1, out2, out3, out4, out5, out6, out7, out8]), dim=0)
 
 def run_inference(input_dir, output_dir, checkpoint_path, device=None, base_channels=32, batch_size=8, use_fp16=True, use_compile=False, use_tta=True):
     if device is None:
@@ -101,33 +102,39 @@ def run_inference(input_dir, output_dir, checkpoint_path, device=None, base_chan
         test_files = sorted(glob.glob(os.path.join(input_dir, "*.npy")))
         
     total = len(test_files)
-    print(f"[INFO] Found {total} images to process (batch_size={batch_size}, fp16={use_fp16 and is_cuda})")
+    tta_str = "BATCHED-8x" if use_tta else "OFF"
+    print(f"[INFO] Found {total} images to process (batch_size={batch_size}, fp16={use_fp16 and is_cuda}, TTA={tta_str})")
 
-    # ── 4. Batched Inference with Mixed Precision ─────────────────
+    # ── 4. Batched Inference with GPU Normalization ───────────────
     processed = 0
     with torch.no_grad():  # Skip autograd graph entirely — free speed + memory win
         for batch_start in range(0, total, batch_size):
             batch_files = test_files[batch_start : batch_start + batch_size]
             
-            # Load and normalize each image in this batch
-            batch_tensors = []
-            batch_params = []  # Store (min_val, max_val) for denormalization
+            # Load all images in this batch as numpy arrays
+            raw_arrays = [np.load(fp) for fp in batch_files]
             
-            for file_path in batch_files:
-                noisy = np.load(file_path)
-                noisy_t = torch.from_numpy(noisy).float().unsqueeze(0).unsqueeze(0)  # (1, 1, H, W)
-                noisy_norm, min_val, max_val = normalize_image(noisy_t)
-                batch_tensors.append(noisy_norm)
+            # Stack into a single batch tensor and move to GPU immediately
+            batch_np = np.stack([a[np.newaxis, np.newaxis, ...] for a in raw_arrays], axis=0)  # (B, 1, 1, H, W)
+            batch_tensor = torch.from_numpy(batch_np.squeeze(axis=1)).float()  # (B, 1, H, W)
+            batch_gpu = batch_tensor.to(device)
+            
+            # Normalize each image in the batch using GPU-accelerated quantiles
+            batch_params = []  # Store (min_val, max_val) for denormalization
+            for i in range(batch_gpu.shape[0]):
+                img = batch_gpu[i:i+1]  # (1, 1, H, W) — keep dims
+                flat = img[..., ::4, ::4].contiguous().view(-1)
+                min_val = torch.quantile(flat, 0.01).item()
+                max_val = torch.quantile(flat, 0.99).item()
+                batch_gpu[i] = torch.clamp(batch_gpu[i], min_val, max_val)
+                batch_gpu[i] = (batch_gpu[i] - min_val) / (max_val - min_val + 1e-8)
                 batch_params.append((min_val, max_val))
             
-            # Stack into a single batch tensor: (B, 1, H, W)
-            batch_input = torch.cat(batch_tensors, dim=0).to(device)
-            
-            # Forward pass (with optional 8x TTA)
+            # Forward pass (with optional batched 8x TTA)
             if use_tta:
-                batch_output = forward_tta(model, batch_input, use_fp16, is_cuda)
+                batch_output = forward_tta(model, batch_gpu, use_fp16, is_cuda)
             else:
-                batch_output = _forward_pass(model, batch_input, use_fp16, is_cuda)
+                batch_output = _forward_pass(model, batch_gpu, use_fp16, is_cuda)
             
             # Denormalize and save each image
             batch_output = batch_output.cpu()
