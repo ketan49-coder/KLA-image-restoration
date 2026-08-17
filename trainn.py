@@ -267,13 +267,13 @@ def train(
         alt_criterion_charb = get_loss_function('charbonnier').to(device)
         alt_loss_phases = [
             (0,   599, alt_criterion_quad,  'quad_phase1', 0.0005),
-            (600, 999, alt_criterion_charb, 'charb_phase2', 0.0003),
-            (1000, 9999, alt_criterion_quad, 'quad_phase3', 0.0002),
+            (600, 899, alt_criterion_charb, 'charb_phase2', 0.0003),
+            (900, 1599, alt_criterion_quad, 'quad_phase3', 0.0002),
         ]
         print("🔄 ALTERNATING LOSS ENABLED:")
         print("   Phase 1 (Ep 0-599):    QuadFidelity  | LR: 0.0005")
-        print("   Phase 2 (Ep 600-999):  Charbonnier   | LR: 0.0003")
-        print("   Phase 3 (Ep 1000+):    QuadFidelity  | LR: 0.0002")
+        print("   Phase 2 (Ep 600-899):  Charbonnier   | LR: 0.0003")
+        print("   Phase 3 (Ep 900-1599): QuadFidelity  | LR: 0.0002")
 
     # 5. Optimizer, Scheduler, & FP16 Scaler
     optimizer = optim.Adam(model.parameters(), lr=lr)
@@ -396,7 +396,12 @@ def train(
                         # 2. Recreate Scheduler perfectly scoped to this phase's duration
                         phase_duration = (phase_end - phase_start) + 1
                         steps_into_phase = epoch - phase_start
-                        scheduler = CosineAnnealingLR(optimizer, T_max=phase_duration, eta_min=1e-6)
+                        
+                        if phase_name == 'quad_phase3':
+                            print("🔥 DANGER: Using Aggressive Warm Restarts (T_0=200) for Phase 3!")
+                            scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=200, eta_min=1e-6)
+                        else:
+                            scheduler = CosineAnnealingLR(optimizer, T_max=phase_duration, eta_min=1e-6)
                         
                         # Fast-forward scheduler if resuming mid-phase
                         import warnings
