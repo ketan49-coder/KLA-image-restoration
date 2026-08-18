@@ -37,7 +37,7 @@ def main():
         pred_tensor = torch.from_numpy(pred).float().unsqueeze(0).unsqueeze(0)
         gt_tensor = torch.from_numpy(gt).float().unsqueeze(0).unsqueeze(0)
         
-        res = metrics.evaluate_batch(pred_tensor, gt_tensor)
+        res = metrics.compute_batch(pred_tensor, gt_tensor)
         psnrs.append(res['psnr'])
         ssims.append(res['ssim'])
         
