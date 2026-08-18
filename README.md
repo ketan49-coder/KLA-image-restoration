@@ -18,21 +18,20 @@ pip install -r requirements.txt
 
 ## ⚡ 2. Evaluation / Inference (Mandatory Requirement)
 
-To run the standalone inference script exactly as required by the benchmarking team, use `inference.py`.
+To run the standalone inference script exactly as required by the benchmarking team, use `run.py`.
 
 The script accepts a folder of degraded `.npy` images, processes them through the model using **8x Test-Time Augmentation (TTA)** for maximum PSNR/SSIM, and saves the restored 256x256 `.npy` images to the output directory.
 
 ### Inference Command
 ```bash
-python inference.py --input_dir /path/to/test/images --output_dir /path/to/output/folder --checkpoint /path/to/trained_model.pth
+python run.py <input-dir> <output-dir>
 ```
 
 ### Arguments:
-- `--input_dir`: Path to the directory containing degraded 128x128 images.
-- `--output_dir`: Path where the restored 256x256 images will be saved.
-- `--checkpoint`: Path to the `.pth` weights file (e.g., `best_model.pth`).
-- `--no_tta`: *(Optional)* Pass this flag to disable the 8x Test-Time Augmentation if you wish to see the raw base speed (though TTA easily passes the 10-second rule on an H100).
-- `--no_fp16`: *(Optional)* Pass this flag to disable FP16 Mixed Precision inference.
+- `<input-dir>`: Path to the directory containing degraded 128x128 images.
+- `<output-dir>`: Path where the restored 256x256 images will be saved.
+
+*(Note: The script automatically loads the pre-trained checkpoint from `models/final_model.pth` and applies 8x Test-Time Augmentation and FP16 Mixed Precision inference under the hood to maximize quality while staying under the 10-second hardware penalty rule).*
 
 ---
 
