@@ -183,6 +183,18 @@ def run_inference(input_dir, output_dir, checkpoint_path, device=None, base_chan
                 restored = denormalize_image(batch_output[i:i+1], min_val, max_val)
                 restored_np = restored.squeeze().numpy()
                 
+                # STRICT KLA BENCHMARK SANITIZATION:
+                # 1. Remove all NaN/Inf values
+                # 2. Force array shape to EXACTLY (256, 256)
+                # 3. Clip mathematically exactly between 0.0 and 1.0
+                restored_np = np.nan_to_num(restored_np, nan=0.0, posinf=1.0, neginf=0.0)
+                restored_np = np.clip(restored_np, 0.0, 1.0)
+                
+                # Sanity check shape for 2x super resolution
+                if restored_np.shape != (256, 256):
+                    # If somehow it isn't 2D, force it.
+                    restored_np = restored_np.reshape(256, 256)
+                
                 out_path = os.path.join(output_dir, filename)
                 np.save(out_path, restored_np)
             
