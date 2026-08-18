@@ -68,7 +68,43 @@ def forward_tta(model, x, use_fp16, is_cuda):
     
     return torch.mean(torch.stack([out1, out2, out3, out4, out5, out6, out7, out8]), dim=0)
 
-def run_inference(input_dir, output_dir, checkpoint_path, device=None, base_channels=32, batch_size=8, use_fp16=True, use_compile=False, use_tta=True):
+def forward_shift_tta(model, x, use_fp16, is_cuda, shifts=None):
+    """
+    16x Shift Test-Time Augmentation using a 4x4 grid.
+    Since the model is 2x Super Resolution, un-rolling the output requires 2x shift.
+    """
+    if shifts is None:
+        shifts = [(dx, dy) for dx in range(4) for dy in range(4)]
+        
+    out_accum = 0
+    for dx, dy in shifts:
+        x_shifted = torch.roll(x, shifts=(dy, dx), dims=(2, 3))
+        out_shifted = _forward_pass(model, x_shifted, use_fp16, is_cuda)
+        out_unshifted = torch.roll(out_shifted, shifts=(-2*dy, -2*dx), dims=(2, 3))
+        out_accum = out_accum + out_unshifted
+        
+    return out_accum / len(shifts)
+
+def forward_super_tta(model, x, use_fp16, is_cuda, shifts=None):
+    """
+    Super 128x TTA: Combines 16x Shift with 8x Dihedral Flips.
+    Runs 8x Dihedral for EACH of the 16 shifts to avoid memory blowup.
+    """
+    if shifts is None:
+        shifts = [(dx, dy) for dx in range(4) for dy in range(4)]
+        
+    out_accum = 0
+    for dx, dy in shifts:
+        x_shifted = torch.roll(x, shifts=(dy, dx), dims=(2, 3))
+        # Use batched Dihedral 8x TTA for this shift
+        out_shifted_aug = forward_tta(model, x_shifted, use_fp16, is_cuda)
+        # Unroll by 2x due to Super Resolution
+        out_unshifted = torch.roll(out_shifted_aug, shifts=(-2*dy, -2*dx), dims=(2, 3))
+        out_accum = out_accum + out_unshifted
+        
+    return out_accum / len(shifts)
+
+def run_inference(input_dir, output_dir, checkpoint_path, device=None, base_channels=32, batch_size=8, use_fp16=True, use_compile=False, tta_mode="dihedral8x"):
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
@@ -88,7 +124,7 @@ def run_inference(input_dir, output_dir, checkpoint_path, device=None, base_chan
     if use_compile:
         try:
             model = torch.compile(model)
-            print("[INFO] ⚡ torch.compile() applied — fused graph optimization enabled")
+            print("[INFO] torch.compile() applied - fused graph optimization enabled")
         except Exception as e:
             print(f"[INFO] torch.compile() skipped: {e}")
 
@@ -102,8 +138,7 @@ def run_inference(input_dir, output_dir, checkpoint_path, device=None, base_chan
         test_files = sorted(glob.glob(os.path.join(input_dir, "*.npy")))
         
     total = len(test_files)
-    tta_str = "BATCHED-8x" if use_tta else "OFF"
-    print(f"[INFO] Found {total} images to process (batch_size={batch_size}, fp16={use_fp16 and is_cuda}, TTA={tta_str})")
+    print(f"[INFO] Found {total} images to process (batch_size={batch_size}, fp16={use_fp16 and is_cuda}, TTA={tta_mode})")
 
     # ── 4. Batched Inference with GPU Normalization ───────────────
     processed = 0
@@ -130,8 +165,12 @@ def run_inference(input_dir, output_dir, checkpoint_path, device=None, base_chan
                 batch_gpu[i] = (batch_gpu[i] - min_val) / (max_val - min_val + 1e-8)
                 batch_params.append((min_val, max_val))
             
-            # Forward pass (with optional batched 8x TTA)
-            if use_tta:
+            # Forward pass (with selected TTA mode)
+            if tta_mode == "super128x":
+                batch_output = forward_super_tta(model, batch_gpu, use_fp16, is_cuda)
+            elif tta_mode == "shift16x":
+                batch_output = forward_shift_tta(model, batch_gpu, use_fp16, is_cuda)
+            elif tta_mode == "dihedral8x":
                 batch_output = forward_tta(model, batch_gpu, use_fp16, is_cuda)
             else:
                 batch_output = _forward_pass(model, batch_gpu, use_fp16, is_cuda)
@@ -151,7 +190,7 @@ def run_inference(input_dir, output_dir, checkpoint_path, device=None, base_chan
             if processed % max(batch_size * 4, 32) == 0 or processed == total:
                 print(f"  [Progress] {processed}/{total} images processed")
 
-    print(f"\n[INFO] ✅ Inference complete. {total} images saved to: {output_dir}")
+    print(f"\n[INFO] Inference complete. {total} images saved to: {output_dir}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Standalone Inference Script for KLA Restoration Model")
@@ -162,7 +201,7 @@ if __name__ == "__main__":
     parser.add_argument("--base_channels", type=int, default=32, help="Base channel count for NAFNet (default: 32)")
     parser.add_argument("--batch_size", type=int, default=8, help="Inference batch size (default: 8)")
     parser.add_argument("--no_fp16", action="store_true", help="Disable FP16 mixed precision inference")
-    parser.add_argument("--no_tta", action="store_true", help="Disable 8x Test-Time Augmentation (TTA)")
+    parser.add_argument("--tta_mode", type=str, default="dihedral8x", choices=["none", "dihedral8x", "shift16x", "super128x"], help="TTA mode to use (default: dihedral8x)")
     parser.add_argument("--compile", action="store_true", help="Enable torch.compile() graph optimization (PyTorch 2.0+)")
     
     args = parser.parse_args()
@@ -170,5 +209,5 @@ if __name__ == "__main__":
     run_inference(
         args.input_dir, args.output_dir, args.checkpoint,
         device=args.device, base_channels=args.base_channels,
-        batch_size=args.batch_size, use_fp16=not args.no_fp16, use_compile=args.compile, use_tta=not args.no_tta
+        batch_size=args.batch_size, use_fp16=not args.no_fp16, use_compile=args.compile, tta_mode=args.tta_mode
     )
