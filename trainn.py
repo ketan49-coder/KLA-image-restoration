@@ -397,8 +397,11 @@ def train(
                         phase_duration = (phase_end - phase_start) + 1
                         steps_into_phase = epoch - phase_start
                         
-                        if phase_name == 'quad_phase3':
-                            print("🔥 DANGER: Using Aggressive Warm Restarts (T_0=200) for Phase 3!")
+                        if phase_name == 'quad_phase1':
+                            print("🔥 PHASE 1: Using Warm Restarts (T_0=200) to quickly escape local minima!")
+                            scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=200, eta_min=1e-6)
+                        elif phase_name == 'quad_phase3':
+                            print("🔥 PHASE 3: Using Aggressive Warm Restarts (T_0=200) for final re-sharpening!")
                             scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=200, eta_min=1e-6)
                         else:
                             scheduler = CosineAnnealingLR(optimizer, T_max=phase_duration, eta_min=1e-6)
