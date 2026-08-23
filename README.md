@@ -56,8 +56,8 @@ During training, we realized the model was getting trapped in local minima early
 Because we restricted NAFNet to 32 channels, our raw inference was blazingly fast. We realized we had massive spare overhead before hitting KLA's 10-second limit. 
 We built a highly optimized **128x Test-Time Augmentation (TTA)** engine inside `inference.py` (combining 16 geometric shifts with 8 dihedral flips). This mathematical brute-force trick took our base 26.9 dB weights and artificially elevated them to **28.04 dB**, scoring us a massive +1.1 dB "free" boost during evaluation.
 
-### Phase 6: Post-Hackathon V2 Research Architecture
-While our Hackathon submission (V1) successfully passed KLA's benchmark, we have since developed a **V2 Research Architecture** to overcome the inherent limitations of standard CNNs:
+### Phase 6: Round 2 / Advanced V2 Architecture
+While our Round 1 submission (V1) successfully passed KLA's benchmark, we immediately began developing a **V2 Research Architecture** for the next phases of the hackathon to overcome the inherent limitations of standard CNNs:
 1. **Global Receptive Field Bottleneck:** Baseline NAFNet lacks the global context of a Vision Transformer. We engineered a hybrid architecture by injecting a **Convolutional Block Attention Module (CBAM)** directly into the NAFNet bottleneck. This provides Spatial-Channel Attention globally while maintaining sub-second inference speeds.
 2. **Advanced SEM Data Augmentation:** To prevent the model from memorizing static noise patches, we developed two custom V2 augmentations:
    * **Independent Noise Profile Decoupling:** Mathematically extracts raw noise, flips/rotates it independently of the underlying silicon structure, and re-injects it.
