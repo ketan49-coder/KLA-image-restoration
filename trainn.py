@@ -289,10 +289,10 @@ def train(
         scheduler = CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-6)
         print(f"📈 Scheduler: CosineAnnealingLR (T_max={epochs}, eta_min=1e-6)")
     elif scheduler_type == "hybrid":
-        sched1 = CosineAnnealingWarmRestarts(optimizer, T_0=400, eta_min=1e-6)
-        sched2 = CosineAnnealingLR(optimizer, T_max=max(1, epochs - 400), eta_min=1e-6)
-        scheduler = SequentialLR(optimizer, schedulers=[sched1, sched2], milestones=[400])
-        print(f"📈 Scheduler: Hybrid Sequential (SGDR 0-400 -> Cosine 401-{epochs})")
+        sched1 = CosineAnnealingWarmRestarts(optimizer, T_0=100, eta_min=1e-6)
+        sched2 = CosineAnnealingLR(optimizer, T_max=max(1, epochs - 300), eta_min=1e-6)
+        scheduler = SequentialLR(optimizer, schedulers=[sched1, sched2], milestones=[300])
+        print(f"📈 Scheduler: Hybrid Sequential (Warm Restarts 0-300 -> Smooth Cosine 301-{epochs})")
     else:
         print("📈 Scheduler: Fixed Learning Rate")
 
