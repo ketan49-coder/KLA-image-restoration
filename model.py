@@ -105,6 +105,46 @@ class NAFBlock(nn.Module):
         x = self.dropout2(x)
         return y + x * self.gamma
 
+
+class CBAMBlock(nn.Module):
+    """
+    Convolutional Block Attention Module (CBAM).
+    Adds both Channel-wise and Spatial-wise Attention sequentially.
+    Extremely lightweight, giving the model global context without breaking speed.
+    """
+    def __init__(self, channels, reduction=16):
+        super().__init__()
+        # Channel Attention
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.max_pool = nn.AdaptiveMaxPool2d(1)
+        # Prevent division by zero if channels is very small
+        reduced_channels = max(channels // reduction, 4)
+        self.fc = nn.Sequential(
+            nn.Conv2d(channels, reduced_channels, 1, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Conv2d(reduced_channels, channels, 1, bias=False)
+        )
+        self.sigmoid_ca = nn.Sigmoid()
+        
+        # Spatial Attention
+        self.conv_sa = nn.Conv2d(2, 1, kernel_size=7, padding=3, bias=False)
+        self.sigmoid_sa = nn.Sigmoid()
+
+    def forward(self, x):
+        # 1. Channel Attention
+        avg_out = self.fc(self.avg_pool(x))
+        max_out = self.fc(self.max_pool(x))
+        ca = self.sigmoid_ca(avg_out + max_out)
+        x = x * ca
+        
+        # 2. Spatial Attention
+        avg_out_sa = torch.mean(x, dim=1, keepdim=True)
+        max_out_sa, _ = torch.max(x, dim=1, keepdim=True)
+        sa_input = torch.cat([avg_out_sa, max_out_sa], dim=1)
+        sa = self.sigmoid_sa(self.conv_sa(sa_input))
+        return x * sa
+
+
 class NAFNet(nn.Module):
     def __init__(self, in_channels=1, out_channels=1, base_channels=32):
         super().__init__()
@@ -121,8 +161,16 @@ class NAFNet(nn.Module):
         self.enc3 = nn.Sequential(*[NAFBlock(base_channels*4) for _ in range(2)])
         self.down3 = nn.Conv2d(base_channels*4, base_channels*8, 2, 2)
         
-        # Bottleneck
-        self.middle = nn.Sequential(*[NAFBlock(base_channels*8) for _ in range(4)])
+        # Bottleneck (Hybrid Global Attention Injection)
+        # We inject CBAM exactly at the bottleneck (where the image is 8x smaller).
+        # This gives maximum global context while using the absolute minimum GPU math.
+        self.middle = nn.Sequential(
+            NAFBlock(base_channels*8),
+            NAFBlock(base_channels*8),
+            CBAMBlock(base_channels*8),  # V2 Global Attention Block
+            NAFBlock(base_channels*8),
+            NAFBlock(base_channels*8)
+        )
         
         # Decoders
         self.up3 = nn.Sequential(nn.Conv2d(base_channels*8, base_channels*8*2, 1, 1), nn.PixelShuffle(2))
