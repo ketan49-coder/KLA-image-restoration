@@ -398,8 +398,11 @@ def train(
                         steps_into_phase = epoch - phase_start
                         
                         if phase_name == 'quad_phase1':
-                            print("🔥 PHASE 1: Using Warm Restarts (T_0=200) to quickly escape local minima!")
-                            scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=200, eta_min=1e-6)
+                            print("🔥 PHASE 1: Hybrid Scheduler (Warm Restarts 0-300 -> Smooth Cosine 301-600)")
+                            # Restarts at Epoch 100, 200, and 300, then smooth curve until 600
+                            sched1 = CosineAnnealingWarmRestarts(optimizer, T_0=100, eta_min=1e-6)
+                            sched2 = CosineAnnealingLR(optimizer, T_max=300, eta_min=1e-6)
+                            scheduler = SequentialLR(optimizer, schedulers=[sched1, sched2], milestones=[300])
                         elif phase_name == 'quad_phase3':
                             print("🔥 PHASE 3: Using Aggressive Warm Restarts (T_0=200) for final re-sharpening!")
                             scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=200, eta_min=1e-6)
