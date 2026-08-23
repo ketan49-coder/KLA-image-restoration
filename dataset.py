@@ -168,34 +168,6 @@ class ImageRestorationDataset(Dataset):
                 noisy = torch.rot90(noisy, k, [1, 2])
                 gt = torch.rot90(gt, k, [1, 2])
 
-            # ========================================================
-            # V2 ADVANCED AUGMENTATIONS (For Research Paper)
-            # ========================================================
-            
-            # 1. Independent Noise Profile Decoupling
-            # Extracts the naked sensor noise, alters its geometry independently 
-            # of the ground truth, and recombines it. Forces the model to decouple 
-            # noise textures from the underlying silicon geometry.
-            if random.random() > 0.5:
-                extracted_noise = noisy - gt
-                if random.random() > 0.5:
-                    extracted_noise = torch.flip(extracted_noise, [1])
-                if random.random() > 0.5:
-                    extracted_noise = torch.flip(extracted_noise, [2])
-                # Re-inject the randomized noise profile
-                noisy = gt + extracted_noise
-                
-            # 2. CleanMix (Identity Forcing)
-            # Randomly copy-pastes a perfectly clean 32x32 patch into the noisy image.
-            # Prevents over-smoothing by forcing the model to act as an identity 
-            # function when it encounters regions that are already sharp.
-            if random.random() > 0.7:
-                h, w = gt.shape[1], gt.shape[2] # (1, H, W)
-                patch_size = 32
-                top = random.randint(0, h - patch_size)
-                left = random.randint(0, w - patch_size)
-                noisy[:, top:top+patch_size, left:left+patch_size] = gt[:, top:top+patch_size, left:left+patch_size]
-
         return noisy, gt
 
 # Alias for backwards compatibility
