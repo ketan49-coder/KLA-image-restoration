@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR, CosineAnnealingWarmRestarts, SequentialLR
+from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR, CosineAnnealingWarmRestarts, SequentialLR, LinearLR
 
 from model import get_model
 from dataset import ImageRestorationDataset
@@ -289,10 +289,12 @@ def train(
         scheduler = CosineAnnealingLR(optimizer, T_max=epochs, eta_min=1e-6)
         print(f"📈 Scheduler: CosineAnnealingLR (T_max={epochs}, eta_min=1e-6)")
     elif scheduler_type == "hybrid":
+        warmup_epochs = 50
         sched1 = CosineAnnealingWarmRestarts(optimizer, T_0=100, eta_min=1e-6)
-        sched2 = CosineAnnealingLR(optimizer, T_max=max(1, epochs - 300), eta_min=1e-6)
-        scheduler = SequentialLR(optimizer, schedulers=[sched1, sched2], milestones=[300])
-        print(f"📈 Scheduler: Hybrid Sequential (Warm Restarts 0-300 -> Smooth Cosine 301-{epochs})")
+        sched2 = LinearLR(optimizer, start_factor=1e-6/lr, end_factor=1.0, total_iters=warmup_epochs)
+        sched3 = CosineAnnealingLR(optimizer, T_max=max(1, epochs - 300 - warmup_epochs), eta_min=1e-6)
+        scheduler = SequentialLR(optimizer, schedulers=[sched1, sched2, sched3], milestones=[300, 300 + warmup_epochs])
+        print(f"📈 Scheduler: Hybrid Sequential (Warm Restarts 0-300 -> Linear Warmup 301-{300+warmup_epochs} -> Smooth Cosine {300+warmup_epochs+1}-{epochs})")
     else:
         print("📈 Scheduler: Fixed Learning Rate")
 
@@ -332,7 +334,11 @@ def train(
         if scorer and isinstance(checkpoint, dict) and checkpoint.get('scorer_state_dict'):
             try:
                 scorer.load_state_dict(checkpoint['scorer_state_dict'])
-                print("✓ Composite Scorer state restored")
+                # Reset scorer to use updated weights cleanly on resume
+                old_best = scorer.best_score
+                scorer.best_score = -float("inf")
+                scorer.best_metrics = None
+                print(f"✓ Composite Scorer reset for fresh scoring (old best: {old_best:.4f})")
             except Exception as e:
                 print(f"⚠ Could not restore scorer: {e}")
                 

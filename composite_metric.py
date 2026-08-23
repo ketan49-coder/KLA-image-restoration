@@ -11,7 +11,7 @@ class CompositeScorer:
     all-round improvement (not just a win on one metric at another's expense).
     """
 
-    def __init__(self, psnr_ceiling=35.0, w_psnr=0.4, w_ssim=0.35, w_lpips=0.25):
+    def __init__(self, psnr_ceiling=35.0, w_psnr=0.7, w_ssim=0.2, w_lpips=0.1):
         assert abs((w_psnr + w_ssim + w_lpips) - 1.0) < 1e-6, "Weights must sum to 1.0"
         self.psnr_ceiling = psnr_ceiling
         self.w_psnr = w_psnr
