@@ -1,3 +1,5 @@
+Off Campus code 24927U
+
 # KLA Image Restoration Hackathon 2026: 28.04 dB PSNR Submission
 
 This repository contains our team's inference and training pipeline for the AI-Based Restoration of Degraded Images problem statement. 
